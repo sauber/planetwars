@@ -5,6 +5,7 @@ use warnings;
 use strict;
 use PlanetWars;
 use Test::More;
+use Data::Dump;
 
 
 say "Testing Fleet-object";
@@ -36,18 +37,31 @@ $planet->RemoveShips(9);
 is($planet->NumShips(),2,'RemoveShips');
 
 say "Testing PlanetWars-object";
-my $PlanetWars = new PlanetWars();
+my $PlanetWars = new PlanetWars(["P 0 0 1 34 2","P 7 9 2 34 2","P 3.14 2.71 0 15 5"]);
 
-#P 0    0    1 34 2  # Player one's home planet.
-#P 7    9    2 34 2  # Player two's home planet.
-#P 3.14 2.71 0 15 5  # A neutral planet with real-number coordinates.
+is($PlanetWars->NumPlanets(),3,'NumPlanets');
 
-#F 1 15 0 1 12 2     # Player one has sent some ships to attack player two.
-#F 2 28 1 2  8 4     # Player two has sent some ships to take over the neutral planet.
-#go
+my @planets = $PlanetWars->Planets();
+isa_ok($planets[0],'Planet','Planets');
+isa_ok($PlanetWars->GetPlanet(0),'Planet','GetPlanet');
 
-$
+@planets = $PlanetWars->MyPlanets();
+is($planets[0]->Owner(),1,'MyPlanets');
+
+@planets = $PlanetWars->NeutralPlanets();
+is($planets[0]->Owner(),0,'NeutralPlanets');
+
+@planets = $PlanetWars->EnemyPlanets();
+cmp_ok($planets[0]->Owner(),'>',1,'EnemyPlanets');
+
+@planets = $PlanetWars->NotMyPlanets();
+cmp_ok($planets[0]->Owner(),'!=',1,'NotMyPlanets');
 
 
 
 done_testing();
+
+#F 1 15 0 1 12 2     # Player one has sent some ships to attack player two.
+#F 2 28 1 2  8 4     # Player two has sent some ships to take over the neutral planet.
+#go
+    
