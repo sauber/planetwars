@@ -22,22 +22,23 @@ say "Testing Planet-object";
 my $planet = new Planet(1, 2, 3, 4, 5, 6);
 
 is($planet->PlanetID(),1,'PlanetID');
-is($planet->Owner(),2,'Owner');
-is($planet->NumShips(),3,'NumShips');
-is($planet->GrowthRate(),4,'GrowthRate');
-is($planet->X(),5,'X');
-is($planet->Y(),6,'Y');
+is($planet->X(),2,'X');
+is($planet->Y(),3,'Y');
+is($planet->Owner(),4,'Owner');
+is($planet->NumShips(),5,'NumShips');
+is($planet->GrowthRate(),6,'GrowthRate');
+
 
 $planet->Owner(7);
 is($planet->Owner(),7,'New Owner');
 
 $planet->AddShips(8);
-is($planet->NumShips(),11,'AddShips');
+is($planet->NumShips(),13,'AddShips');
 $planet->RemoveShips(9);
-is($planet->NumShips(),2,'RemoveShips');
+is($planet->NumShips(),4,'RemoveShips');
 
 say "Testing PlanetWars-object";
-my $PlanetWars = new PlanetWars(["P 0 0 1 34 2","P 7 9 2 34 2","P 3.14 2.71 0 15 5"]);
+my $PlanetWars = new PlanetWars(["P 0 0 1 34 2","P 7 9 2 34 2","P 3.14 2.71 0 15 5","F 1 15 0 1 12 2","F 2 28 1 2 8 4"]);
 
 is($PlanetWars->NumPlanets(),3,'NumPlanets');
 
