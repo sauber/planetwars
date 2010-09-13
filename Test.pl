@@ -60,9 +60,21 @@ cmp_ok($planets[0]->Owner(),'!=',1,'NotMyPlanets');
 
 is($PlanetWars->Distance(0,2),5,'Distance');
 
-$PlanetWars->IssueOrder(1,2,3);
+is($PlanetWars->IsAlive(1),1,'IsAlive1');
+is($PlanetWars->IsAlive(3),0,'IsAlive2');
 
 
+is($PlanetWars->NumPlanets(),3,'NumPlanets');
+
+my @fleets = $PlanetWars->Fleets();
+isa_ok($fleets[0],'Fleet','Fleets');
+isa_ok($PlanetWars->GetFleet(0),'Fleet','GetFleet');
+
+@fleets = $PlanetWars->MyFleets();
+is($fleets[0]->Owner(),1,'MyFleets');
+
+@fleets = $PlanetWars->EnemyFleets();
+cmp_ok($fleets[0]->Owner(),'>',1,'EnemyFleets');
 
 done_testing();
 

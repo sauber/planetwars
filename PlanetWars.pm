@@ -10,6 +10,7 @@ package Fleet;
 sub new {
     my $class = shift;    
     my $self = {
+        _fleet_id           => shift,
         _owner              => shift,
         _num_ships          => shift,
         _source_planet      => shift,
@@ -20,6 +21,10 @@ sub new {
     bless $self, $class;
     return $self;    
 }      
+sub FleetID {
+    my ($self) = @_;
+    return $self->{_fleet_id}
+}
 sub Owner {
     my ($self) = @_;
     return $self->{_owner}
@@ -110,12 +115,10 @@ sub new {
     $self->ParseGameState($gameState);
     return $self;    
 }
-
 sub NumPlanets {
     my ($self) = @_;
     return scalar(@{$self->{_planets}});
 }
-
 sub GetPlanet {
     my ($self, $planet_id) = @_;
     foreach (@{$self->{_planets}}) {
@@ -125,20 +128,23 @@ sub GetPlanet {
     }
     die('planet doesnt exist');
 }
-
 sub NumFleets {
     my ($self) = @_;
+    return scalar(@{$self->{_fleets}});
 }
-
 sub GetFleet {
-    my ($self) = @_;
+    my ($self, $fleet_id) = @_;
+    foreach (@{$self->{_fleets}}) {
+        if ($_->FleetID() == $fleet_id) {
+            return $_;
+        }
+    }
+    die('fleet doesnt exist');
 }
-
 sub Planets {
     my ($self) = @_;
     return @{$self->{_planets}};
 }
-
 sub MyPlanets {
     my ($self) = @_;
     my @planets;
@@ -149,7 +155,6 @@ sub MyPlanets {
     }
     return @planets;
 }
-
 sub NeutralPlanets {
     my ($self) = @_;
     my @planets;
@@ -160,7 +165,6 @@ sub NeutralPlanets {
     }
     return @planets;
 }
-
 sub EnemyPlanets {
     my ($self) = @_;
     my @planets;
@@ -171,7 +175,6 @@ sub EnemyPlanets {
     }
     return @planets;
 }
-
 sub NotMyPlanets {
     my ($self) = @_;
     my @planets;
@@ -182,15 +185,30 @@ sub NotMyPlanets {
     }
     return @planets;
 }
-
+sub Fleets {
+    my ($self) = @_;
+    return @{$self->{_fleets}};
+}
 sub MyFleets {
     my ($self) = @_;
+    my @fleets;
+    foreach (@{$self->{_fleets}}) {
+        if ($_->Owner() == 1) {
+            push(@fleets,$_);
+        }
+    }
+    return @fleets;
 }
-
 sub EnemyFleets {
     my ($self) = @_;
+    my @fleets;
+    foreach (@{$self->{_fleets}}) {
+        if (($_->Owner() > 1) ) {
+            push(@fleets,$_);
+        }
+    }
+    return @fleets;
 }
-
 sub Distance {
     my ($self, $source_planet_id, $destination_planet_id) = @_;
     my $source_planet = $self->GetPlanet($source_planet_id);
@@ -199,16 +217,24 @@ sub Distance {
     my $dy = $source_planet->Y() - $destination_planet->Y();
     return abs(&POSIX::ceil(sqrt($dx * $dx + $dy * $dy)));
 }
-
 sub IssueOrder {
     my ($self, $source_planet, $destination_planet, $num_ships) = @_;
     say "$source_planet $destination_planet $num_ships";
 }
-
 sub IsAlive {
-    my ($self) = @_;
+    my ($self, $player_id) = @_;
+    foreach (@{$self->{_planets}}) {
+        if ($_->Owner() == $player_id) {
+            return 1;
+        }
+    }
+    foreach (@{$self->{_fleets}}) {
+        if ($_->Owner() == $player_id) {
+            return 1;
+        }
+    }
+    return 0;
 }
-
 sub ParseGameState{
     my ($self, $gameState) = @_;
     my $planet_count = 0;
@@ -219,19 +245,15 @@ sub ParseGameState{
             push(@{$self->{_planets}},new Planet($planet_count,$1,$2,$3,$4,$5));
             $planet_count++;
         } elsif ($_ =~ m/F\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/) {
-            push(@{$self->{_fleetss}},new Planet($fleet_count,$1,$2,$3,$4,$5,$6));
+            push(@{$self->{_fleets}},new Fleet($fleet_count,$1,$2,$3,$4,$5,$6));
             $fleet_count++;
         } else {
             die('invalid parseinput')
         };
     }
 }
-
-    
-
-
 sub FinishTurn{
-    my ($self) = @_;
+    say "go";
 }
 
 1;
