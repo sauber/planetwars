@@ -58,6 +58,10 @@ cmp_ok($planets[0]->Owner(),'>',1,'EnemyPlanets');
 @planets = $PlanetWars->NotMyPlanets();
 cmp_ok($planets[0]->Owner(),'!=',1,'NotMyPlanets');
 
+is($PlanetWars->Distance(0,2),5,'Distance');
+
+$PlanetWars->IssueOrder(1,2,3);
+
 
 
 done_testing();

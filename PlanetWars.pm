@@ -3,6 +3,7 @@
 use feature ':5.10';
 use warnings;
 use strict;
+use POSIX;
 use Data::Dump;
 
 package Fleet;
@@ -191,11 +192,17 @@ sub EnemyFleets {
 }
 
 sub Distance {
-    my ($self) = @_;
+    my ($self, $source_planet_id, $destination_planet_id) = @_;
+    my $source_planet = $self->GetPlanet($source_planet_id);
+    my $destination_planet = $self->GetPlanet($destination_planet_id);
+    my $dx = $source_planet->X() - $destination_planet->X();
+    my $dy = $source_planet->Y() - $destination_planet->Y();
+    return abs(&POSIX::ceil(sqrt($dx * $dx + $dy * $dy)));
 }
 
 sub IssueOrder {
-    my ($self) = @_;
+    my ($self, $source_planet, $destination_planet, $num_ships) = @_;
+    say "$source_planet $destination_planet $num_ships";
 }
 
 sub IsAlive {
@@ -204,12 +211,16 @@ sub IsAlive {
 
 sub ParseGameState{
     my ($self, $gameState) = @_;
+    my $planet_count = 0;
+    my $fleet_count = 0;
 
     foreach (@$gameState) {
         if ($_ =~ m/P\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/) {;
-            push(@{$self->{_planets}},new Planet(0,$1,$2,$3,$4,$5));
+            push(@{$self->{_planets}},new Planet($planet_count,$1,$2,$3,$4,$5));
+            $planet_count++;
         } elsif ($_ =~ m/F\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/) {
-            push(@{$self->{_fleetss}},new Planet(0,$1,$2,$3,$4,$5,$6));
+            push(@{$self->{_fleetss}},new Planet($fleet_count,$1,$2,$3,$4,$5,$6));
+            $fleet_count++;
         } else {
             die('invalid parseinput')
         };
