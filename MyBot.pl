@@ -4,37 +4,67 @@ use feature ':5.10';
 use warnings;
 use strict;
 use PlanetWars;
+use POSIX;
 
-my $fleet = new Fleet(1, 2, 3, 4, 5, 6);
+local $| = 1;
+my $map_data;
 
-say $fleet->Owner();
-say $fleet->NumShips();
-say $fleet->SourcePlanet();
-say $fleet->DestinationPlanet();
-say $fleet->TotalTripLenght();
-say $fleet->TurnsRemaining();
+while(1) {
+    my $current_line = <STDIN>;
+    if ($current_line =~ m/go/) {
+        my $pw = new PlanetWars($map_data);
+        DoTurn($pw);
+        $pw->FinishTurn();
+        $map_data = [];
+    } elsif ($current_line eq "stop\n") {
+        last;
+    } else {
+        push(@$map_data,$current_line);
+    }
+}
 
-my $planet = new Planet(1, 2, 3, 4, 5, 6);
+sub DoTurn {
+    my ($pw) = @_;
 
-say $planet->PlanetID();
-say $planet->Owner();
-say $planet->NumShips();
-say $planet->GrowthRate();
-say $planet->X();
-say $planet->Y();
+      # (1) If we currently have a fleet in flight, just do nothing.
+    if ($pw->MyFleets() > 0) {
+        return
+    }
 
-$planet->Owner(5);
-say $planet->Owner();
-$planet->Owner(8);
-say $planet->Owner();
+      # (2) Find my strongest planet.
+    my $source = -1;
+    my $source_score = -999999.0;
+    my $source_num_ships = 0;
+    my @my_planets = $pw->MyPlanets();
+    foreach (@my_planets) {
+        my $score = $_->NumShips();
+        if ($score > $source_score) {      
+            $source_score = $score;
+            $source = $_->PlanetID();
+            $source_num_ships = $_->NumShips();
+        }
+    }
+
+      # (3) Find the weakest enemy or neutral planet.
+    my $dest = -1;
+    my $dest_score = -999999.0;
+    my @not_my_planets = $pw->NotMyPlanets();
+    foreach (@not_my_planets) {
+        my $score = 1 / (1 + $_->NumShips());
+        if ($score > $dest_score) {
+            $dest_score = $score;
+            $dest = $_->PlanetID();
+        }
+    }
+
+  # (4) Send half the ships from my strongest planet to the weakest planet that I do not own.
+    if (($source >= 0) and ($dest >= 0)) {
+        my $num_ships = $source_num_ships / 2;
+        $pw->IssueOrder($source,$dest,ceil($num_ships));
+    }
+}
 
 
-$planet->AddShips(10);
 
-say $planet->NumShips();
 
-$planet->RemoveShips(8);
 
-say $planet->NumShips();
-
-my $PlanetWars = new PlanetWars();

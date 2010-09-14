@@ -71,10 +71,10 @@ sub PlanetID {
 }
 sub Owner {
     my ($self, $new_owner) = @_;
-    unless ($new_owner) {
-        return $self->{_owner}
+    if ($new_owner) {
+        $self->{_owner} = $new_owner;    
     }
-    $self->{_owner} = $new_owner;
+    return $self->{_owner}
 }
 sub NumShips {
     my ($self, $new_num_ships) = @_;
@@ -237,16 +237,16 @@ sub IsAlive {
 }
 sub ParseGameState{
     my ($self, $gameState) = @_;
-    my $planet_count = 0;
-    my $fleet_count = 0;
+    my $planet_id = 0;
+    my $fleet_id = 0;
 
     foreach (@$gameState) {
         if ($_ =~ m/P\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/) {;
-            push(@{$self->{_planets}},new Planet($planet_count,$1,$2,$3,$4,$5));
-            $planet_count++;
+            push(@{$self->{_planets}},new Planet($planet_id,$1,$2,$3,$4,$5));
+            $planet_id++;
         } elsif ($_ =~ m/F\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/) {
-            push(@{$self->{_fleets}},new Fleet($fleet_count,$1,$2,$3,$4,$5,$6));
-            $fleet_count++;
+            push(@{$self->{_fleets}},new Fleet($fleet_id,$1,$2,$3,$4,$5,$6));
+            $fleet_id++;
         } else {
             die('invalid parseinput')
         };

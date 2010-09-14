@@ -9,8 +9,9 @@ use Data::Dump;
 
 
 say "Testing Fleet-object";
-my $fleet = new Fleet(1, 2, 3, 4, 5, 6);
+my $fleet = new Fleet(0, 1, 2, 3, 4, 5, 6);
 
+is($fleet->FleetID(),0,'FleetID');
 is($fleet->Owner(),1,'Owner');
 is($fleet->NumShips(),2,'NumShips');
 is($fleet->SourcePlanet(),3,'SourcePlanet');
@@ -19,23 +20,23 @@ is($fleet->TotalTripLenght(),5,'TotalTripLenght');
 is($fleet->TurnsRemaining(),6,'TurnsRemaining');
 
 say "Testing Planet-object";
-my $planet = new Planet(1, 2, 3, 4, 5, 6);
+my $planet = new Planet(0, 1, 2, 1, 4, 5);
 
-is($planet->PlanetID(),1,'PlanetID');
-is($planet->X(),2,'X');
-is($planet->Y(),3,'Y');
-is($planet->Owner(),4,'Owner');
-is($planet->NumShips(),5,'NumShips');
-is($planet->GrowthRate(),6,'GrowthRate');
+is($planet->PlanetID(),0,'PlanetID');
+is($planet->X(),1,'X');
+is($planet->Y(),2,'Y');
+is($planet->Owner(),1,'Owner');
+is($planet->NumShips(),4,'NumShips');
+is($planet->GrowthRate(),5,'GrowthRate');
 
 
-$planet->Owner(7);
-is($planet->Owner(),7,'New Owner');
+$planet->Owner(6);
+is($planet->Owner(),6,'New Owner');
 
-$planet->AddShips(8);
-is($planet->NumShips(),13,'AddShips');
-$planet->RemoveShips(9);
-is($planet->NumShips(),4,'RemoveShips');
+$planet->AddShips(7);
+is($planet->NumShips(),11,'AddShips');
+$planet->RemoveShips(8);
+is($planet->NumShips(),3,'RemoveShips');
 
 say "Testing PlanetWars-object";
 my $PlanetWars = new PlanetWars(["P 0 0 1 34 2","P 7 9 2 34 2","P 3.14 2.71 0 15 5","F 1 15 0 1 12 2","F 2 28 1 2 8 4"]);
