@@ -22,7 +22,6 @@ while(1) {
         push(@$map_data,$current_line);
     }
 }
-
 sub DoTurn {
     my ($pw) = @_;
 
@@ -63,8 +62,3 @@ sub DoTurn {
         $pw->IssueOrder($source,$dest,ceil($num_ships));
     }
 }
-
-
-
-
-

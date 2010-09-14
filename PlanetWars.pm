@@ -254,5 +254,4 @@ sub ParseGameState{
 sub FinishTurn{
     say "go";
 }
-
 1;
