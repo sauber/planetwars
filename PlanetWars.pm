@@ -4,7 +4,6 @@ use feature ':5.10';
 use warnings;
 use strict;
 use POSIX;
-use Data::Dump;
 
 package Fleet;
 sub new {
@@ -255,5 +254,4 @@ sub ParseGameState{
 sub FinishTurn{
     say "go";
 }
-
 1;

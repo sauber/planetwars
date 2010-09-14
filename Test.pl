@@ -4,9 +4,7 @@ use feature ':5.10';
 use warnings;
 use strict;
 use PlanetWars;
-use Test::More;
-use Data::Dump;
-
+use Test::More tests => 31;
 
 say "Testing Fleet-object";
 my $fleet = new Fleet(0, 1, 2, 3, 4, 5, 6);
@@ -28,7 +26,6 @@ is($planet->Y(),2,'Y');
 is($planet->Owner(),1,'Owner');
 is($planet->NumShips(),4,'NumShips');
 is($planet->GrowthRate(),5,'GrowthRate');
-
 
 $planet->Owner(6);
 is($planet->Owner(),6,'New Owner');
@@ -64,7 +61,6 @@ is($PlanetWars->Distance(0,2),5,'Distance');
 is($PlanetWars->IsAlive(1),1,'IsAlive1');
 is($PlanetWars->IsAlive(3),0,'IsAlive2');
 
-
 is($PlanetWars->NumPlanets(),3,'NumPlanets');
 
 my @fleets = $PlanetWars->Fleets();
@@ -78,8 +74,3 @@ is($fleets[0]->Owner(),1,'MyFleets');
 cmp_ok($fleets[0]->Owner(),'>',1,'EnemyFleets');
 
 done_testing();
-
-#F 1 15 0 1 12 2     # Player one has sent some ships to attack player two.
-#F 2 28 1 2  8 4     # Player two has sent some ships to take over the neutral planet.
-#go
-    
