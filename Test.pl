@@ -5,8 +5,6 @@ use warnings;
 use strict;
 use PlanetWars;
 use Test::More;
-use Data::Dump;
-
 
 say "Testing Fleet-object";
 my $fleet = new Fleet(0, 1, 2, 3, 4, 5, 6);
@@ -78,8 +76,3 @@ is($fleets[0]->Owner(),1,'MyFleets');
 cmp_ok($fleets[0]->Owner(),'>',1,'EnemyFleets');
 
 done_testing();
-
-#F 1 15 0 1 12 2     # Player one has sent some ships to attack player two.
-#F 2 28 1 2  8 4     # Player two has sent some ships to take over the neutral planet.
-#go
-    
