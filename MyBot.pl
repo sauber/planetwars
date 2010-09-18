@@ -1,6 +1,5 @@
 #!/usr/bin/perl
 
-use feature ':5.10';
 use warnings;
 use strict;
 use PlanetWars;
