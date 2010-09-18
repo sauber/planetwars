@@ -1,6 +1,5 @@
 #!/usr/bin/perl
 
-use feature ':5.10';
 use warnings;
 use strict;
 use POSIX;
@@ -218,7 +217,7 @@ sub Distance {
 }
 sub IssueOrder {
     my ($self, $source_planet, $destination_planet, $num_ships) = @_;
-    say "$source_planet $destination_planet $num_ships";
+    print "$source_planet $destination_planet $num_ships\n";
 }
 sub IsAlive {
     my ($self, $player_id) = @_;
@@ -252,6 +251,6 @@ sub ParseGameState{
     }
 }
 sub FinishTurn{
-    say "go";
+    print "go\n";
 }
 1;
