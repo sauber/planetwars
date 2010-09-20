@@ -4,11 +4,7 @@ use feature ':5.10';
 use warnings;
 use strict;
 use PlanetWars;
-<<<<<<< HEAD
-use Test::More;
-=======
 use Test::More tests => 31;
->>>>>>> ff19107c58c72dcc3ec660bdb6277097c9c8fb66
 
 say "Testing Fleet-object";
 my $fleet = new Fleet(0, 1, 2, 3, 4, 5, 6);
@@ -18,7 +14,7 @@ is($fleet->Owner(),1,'Owner');
 is($fleet->NumShips(),2,'NumShips');
 is($fleet->SourcePlanet(),3,'SourcePlanet');
 is($fleet->DestinationPlanet(),4,'DestinationPlanet');
-is($fleet->TotalTripLenght(),5,'TotalTripLenght');
+is($fleet->TotalTripLength(),5,'TotalTripLength');
 is($fleet->TurnsRemaining(),6,'TurnsRemaining');
 
 say "Testing Planet-object";

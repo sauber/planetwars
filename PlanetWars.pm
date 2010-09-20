@@ -39,7 +39,7 @@ sub DestinationPlanet {
     my ($self) = @_;
     return $self->{_destination_planet}
 }
-sub TotalTripLenght {
+sub TotalTripLength {
     my ($self) = @_;
     return $self->{_total_trip_length}
 }
