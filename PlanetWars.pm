@@ -69,17 +69,17 @@ sub PlanetID {
 }
 sub Owner {
     my ($self, $new_owner) = @_;
-    if ($new_owner) {
+    if (defined $new_owner) {
         $self->{_owner} = $new_owner;    
     }
     return $self->{_owner}
 }
 sub NumShips {
     my ($self, $new_num_ships) = @_;
-    unless ($new_num_ships) {
-        return $self->{_num_ships}
+    if (defined $new_num_ships) {
+        $self->{_num_ships} = $new_num_ships;
     }
-    $self->{_num_ships} = $new_num_ships;
+    return $self->{_num_ships}
 }
 sub GrowthRate {
     my ($self) = @_;
