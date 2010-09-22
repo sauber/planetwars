@@ -93,7 +93,7 @@ sub SendToClosest {
     for my $neighbor ( @{ $neighbor->{$myplanetid} } ) {
       my $neighborid = $neighbor->PlanetID();
       next unless $not_my_planets{$neighborid};
-      $pw->IssueOrder($myplanetid,$neighborid,6);
+      $pw->IssueOrder($myplanetid,$neighborid, int($myplanet->NumShips()/2) );
       last;
     }
   }
