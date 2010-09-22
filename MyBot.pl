@@ -25,9 +25,9 @@ sub DoTurn {
     my ($pw) = @_;
 
       # (1) If we currently have a fleet in flight, just do nothing.
-    if ($pw->MyFleets() > 0) {
-        return
-    }
+    #if ($pw->MyFleets() > 0) {
+    #    return
+    #}
 
       # (2) Find my strongest planet.
     my $source = -1;
@@ -35,7 +35,8 @@ sub DoTurn {
     my $source_num_ships = 0;
     my @my_planets = $pw->MyPlanets();
     foreach (@my_planets) {
-        my $score = $_->NumShips();
+        #my $score = $_->NumShips();
+        my $score = $_->NumShips() / ( 1 + $_->GrowthRate() );
         if ($score > $source_score) {      
             $source_score = $score;
             $source = $_->PlanetID();
@@ -48,7 +49,8 @@ sub DoTurn {
     my $dest_score = -999999.0;
     my @not_my_planets = $pw->NotMyPlanets();
     foreach (@not_my_planets) {
-        my $score = 1 / (1 + $_->NumShips());
+        #my $score = 1 / (1 + $_->NumShips());
+        my $score = (1 + $_->GrowthRate() ) / $_->NumShips();
         if ($score > $dest_score) {
             $dest_score = $score;
             $dest = $_->PlanetID();
