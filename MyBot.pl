@@ -86,15 +86,34 @@ sub SendToClosest {
   my($pw,$distance,$neighbor) = @_;
 
   # Send 6 ships to closet planet that is not mine
-  my %not_my_planets = map {( $_->PlanetID() => 1 )} $pw->NotMyPlanets();
+
+  # Targets are planets that are not mine, or mine that are attacked
+  my %target = map {( $_->PlanetID() => 1 )} $pw->NotMyPlanets();
+  for my $fl ( $pw->Fleets() ) {
+    next if $fl->Owner() == 1;
+    #my $planetid = $fl->DestinationPlanet()->PlanetID();
+    my $planetid = $fl->DestinationPlanet();
+    #my $planetid = 1;
+    $target{$planetid} = 1;
+  }
+  my $minsize = 1;
   for my $myplanet ( $pw->MyPlanets() ) {
-    next unless $myplanet->NumShips() > 6;
+    next unless $myplanet->NumShips() > $minsize+1;
+    next if $target{$myplanet->PlanetID()}; # Don't send if under attack
     my $myplanetid = $myplanet->PlanetID();
+    my $orders = int $myplanet->NumShips() / $minsize;
+    my $maxorders = 2;
+    my $send = int $myplanet->NumShips() / ($maxorders+1);
+    $send = $minsize if $send < $minsize;
+    # XXX: sort by how hard to get
     for my $neighbor ( @{ $neighbor->{$myplanetid} } ) {
       my $neighborid = $neighbor->PlanetID();
-      next unless $not_my_planets{$neighborid};
-      $pw->IssueOrder($myplanetid,$neighborid, int($myplanet->NumShips()/2) );
-      last;
+      next unless $target{$neighborid};
+      #my $send = int($myplanet->NumShips()/($maxorders+1));
+      $pw->IssueOrder($myplanetid,$neighborid, $send);
+      #last;
+      last if --$orders == 0;
+      last if --$maxorders == 0;
     }
   }
 }
