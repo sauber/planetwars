@@ -7,7 +7,7 @@ use POSIX;
 
 local $| = 1;
 my $map_data;
-my $distances;
+my $distances = {};
 my $closest;
 
 sub x {
@@ -20,11 +20,11 @@ while(1) {
     my $current_line = <STDIN>;
     if ($current_line =~ m/go/) {
         my $pw = new PlanetWars($map_data);
-        unless ( $distances ) {
-          $distances = CalcDistances($pw);
-          $closest = OrderNeighbors($pw, $distances);
-        }
-        DoTurn($pw, $distances, $closest);
+        #unless ( $distances ) {
+        #  $distances = CalcDistances($pw);
+        #  $closest = OrderNeighbors($pw, $distances);
+        #}
+        DoTurn($pw,$distances);
         $pw->FinishTurn();
         $map_data = [];
     } elsif ($current_line eq "stop\n") {
@@ -33,7 +33,7 @@ while(1) {
         push(@$map_data,$current_line);
     }
 }
-sub DoTurn {
+sub old_DoTurn {
     my ($pw,$distance,$neighbor) = @_;
 
     # Just send to closest for now
@@ -82,10 +82,59 @@ sub DoTurn {
 
 # Send fleets to closest planets
 #
-sub SendToClosest {
-  my($pw,$distance,$neighbor) = @_;
+sub DoTurn {
+  my($pw,$distance) = @_;
 
-  # Send 6 ships to closet planet that is not mine
+  my %target = Targets($pw);
+
+  my $minsize = 6;
+  for my $myplanet ( $pw->MyPlanets() ) {
+    next unless $myplanet->NumShips() > $minsize+1;
+    my $myid = $myplanet->PlanetID();
+    next if $target{$myid}; # Don't send if under attack
+
+    # Calc distances that has not been calculated before
+    #for my $dest ( keys %target ) {
+    #  $distance->{$myid}{$dest} ||= $pw->Distance( $myid, $dest );
+    #}
+
+    # Don't sent to targets that has enough ships to defend
+
+    # Sort targets by 
+    #   1 XXX: Under attack
+    #   2 growthrate / ( distance * ships + 1 )
+    for my $dest ( keys %target ) {
+      my $planet = $pw->GetPlanet($dest);
+      my $dist = $distance->{$myid}{$dest} ||= $pw->Distance( $myid, $dest );
+      $target{$dest} = $planet->GrowthRate() / ( $dist * ( $planet->NumShips() + 10 ) );
+    }
+
+    # Tunables
+    my $orders = int $myplanet->NumShips() / $minsize;
+    my $maxorders = 4;
+    my $send = int $myplanet->NumShips() / ($maxorders+1);
+    $send = $minsize if $send < $minsize;
+
+    # XXX: sort by how hard to get
+    #for my $neighbor ( @{ $neighbor->{$myid} } ) {
+    for my $neighborid ( sort { $target{$b} <=> $target{$a} } keys %target ) {
+      #my $neighborid = $neighbor->PlanetID();
+      #next unless $target{$neighborid};
+      #my $send = int($myplanet->NumShips()/($maxorders+1));
+      $pw->IssueOrder($myid,$neighborid, $send);
+      #last;
+      last if --$orders == 0;
+      last if --$maxorders == 0;
+    }
+  }
+}
+
+# List of planets that are
+#  - not mine
+#  - under attack
+#
+sub Targets {
+  my $pw = shift;
 
   # Targets are planets that are not mine, or mine that are attacked
   my %target = map {( $_->PlanetID() => 1 )} $pw->NotMyPlanets();
@@ -96,29 +145,10 @@ sub SendToClosest {
     #my $planetid = 1;
     $target{$planetid} = 1;
   }
-  my $minsize = 1;
-  for my $myplanet ( $pw->MyPlanets() ) {
-    next unless $myplanet->NumShips() > $minsize+1;
-    next if $target{$myplanet->PlanetID()}; # Don't send if under attack
-    my $myplanetid = $myplanet->PlanetID();
-    my $orders = int $myplanet->NumShips() / $minsize;
-    my $maxorders = 2;
-    my $send = int $myplanet->NumShips() / ($maxorders+1);
-    $send = $minsize if $send < $minsize;
-    # XXX: sort by how hard to get
-    for my $neighbor ( @{ $neighbor->{$myplanetid} } ) {
-      my $neighborid = $neighbor->PlanetID();
-      next unless $target{$neighborid};
-      #my $send = int($myplanet->NumShips()/($maxorders+1));
-      $pw->IssueOrder($myplanetid,$neighborid, $send);
-      #last;
-      last if --$orders == 0;
-      last if --$maxorders == 0;
-    }
-  }
+  return %target;
 }
 
-sub CalcDistances {
+sub old_CalcDistances {
   my($pw) = @_;
   my $distance;
 
@@ -139,7 +169,7 @@ sub CalcDistances {
   return $distance;
 }
 
-sub OrderNeighbors {
+sub old_OrderNeighbors {
   my($pw, $distance) = @_;
   my $neighbor;
   #my @planetids = map $_->PlanetID(), $pw->Planets;
