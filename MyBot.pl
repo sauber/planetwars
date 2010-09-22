@@ -135,8 +135,9 @@ sub OrderNeighbors {
         # Find distance to each planet
         my @index = sort { $a <=> $b } ( $p1->PlanetID(), $_->PlanetID() );
         my $dist = $distance->{$index[0]}{$index[1]};
+        my $desire = int $dist / $_->GrowthRate();
         #warn sprintf "Distance between %s and %s is %s\n", @index, $dist;
-        [ $_, $dist ];
+        [ $_, $desire ];
       }
       grep { $p1->PlanetID() != $_->PlanetID }
       $pw->Planets;
