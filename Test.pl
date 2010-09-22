@@ -73,4 +73,4 @@ is($fleets[0]->Owner(),1,'MyFleets');
 @fleets = $PlanetWars->EnemyFleets();
 cmp_ok($fleets[0]->Owner(),'>',1,'EnemyFleets');
 
-done_testing();
+#done_testing();
