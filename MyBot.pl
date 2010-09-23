@@ -5,10 +5,20 @@ use strict;
 use PlanetWars;
 use POSIX;
 
+# Some ideas to work on:
+#  - In first move take as many desired planets closeby as possible
+#  - 100% defensive will surely loose
+#  - Limit number of ships in flight
+#  - When having more ships and growth than opponent, attack harder to finish fast
+#  - When game is already won, stop sending ships
+#  - When game is already lost, go to most far away planet
+
 local $| = 1;
 my $map_data;
-my $distances = {};
-my $closest;
+my $session = {
+  distance => {},
+  move     => 0,
+};
 
 sub x {
  use Data::Dumper;
@@ -20,11 +30,8 @@ while(1) {
     my $current_line = <STDIN>;
     if ($current_line =~ m/go/) {
         my $pw = new PlanetWars($map_data);
-        #unless ( $distances ) {
-        #  $distances = CalcDistances($pw);
-        #  $closest = OrderNeighbors($pw, $distances);
-        #}
-        DoTurn($pw,$distances);
+        ++$session->{move};
+        DoTurn($pw,$session);
         $pw->FinishTurn();
         $map_data = [];
     } elsif ($current_line eq "stop\n") {
@@ -80,12 +87,71 @@ sub old_DoTurn {
     }
 }
 
+sub DoTurn {
+  my($pw,$session) = @_;
+
+  # Opening Move
+  if ( $session->{move} == 1 ) {
+    FirstMove($pw,$session);
+  # I will win
+  # Attack to erase opponent
+  # Growth
+  # Defensive
+  # I will loose
+
+  } else {
+    Grow($pw,$session);
+  }
+}
+
+sub FirstMove {
+  my($pw,$session) = @_;
+  my $distance = $session->{distance};
+
+  my($myplanet   )= $pw->MyPlanets();
+  my $myid        = $myplanet->PlanetID();
+  my($enemyplanet)= $pw->EnemyPlanets();
+  my $enemyid     = $enemyplanet->PlanetID();
+  my $numships    = $myplanet->NumShips();
+
+  # Find target closer to me than to enemy
+  my %target = Targets($pw);
+  for my $dest ( keys %target ) {
+    my $mydist    =
+      $distance->{$myid}{$dest} ||= $pw->Distance( $myid, $dest );
+    my $enemydist =
+      $distance->{$enemyid}{$dest} ||= $pw->Distance( $enemyid, $dest );
+    if ( $mydist < $enemydist ) {
+      # If closer to me than to enemy, determine the desire
+      my $planet = $pw->GetPlanet($dest);
+      my $numships = $planet->NumShips();
+      my $desire = $planet->GrowthRate() / ( $mydist + $numships );
+      $target{$dest} = { 
+        desire => $desire,
+        numships => $numships,
+      };
+    } else {
+      delete $target{$dest};
+    }
+  }
+
+  # Send ships to higest desire as long as we have enough ships
+  for my $dest ( sort { $target{$b}{desire} <=> $target{$a}{desire} }
+                 keys %target ) {
+    my $tosend = $target{$dest}{numships}+1;
+    next if $tosend >= $numships;
+    $pw->IssueOrder($myid,$dest, $tosend);
+    $numships -= $tosend;
+  }
+}
+
 # Send fleets to closest planets
 #
-sub DoTurn {
-  my($pw,$distance) = @_;
+sub Grow {
+  my($pw,$session) = @_;
 
   my %target = Targets($pw);
+  my $distance = $session->{distance};
 
   my $minsize = 6;
   for my $myplanet ( $pw->MyPlanets() ) {
@@ -128,18 +194,17 @@ sub DoTurn {
     }
   }
 }
-
 # List of planets that are
 #  - not mine
-#  - under attack
+#  - mine under attack
 #
 sub Targets {
   my $pw = shift;
 
   # Targets are planets that are not mine, or mine that are attacked
   my %target = map {( $_->PlanetID() => 1 )} $pw->NotMyPlanets();
-  for my $fl ( $pw->Fleets() ) {
-    next if $fl->Owner() == 1;
+  for my $fl ( $pw->EnemyFleets() ) {
+    #next if $fl->Owner() == 1;
     #my $planetid = $fl->DestinationPlanet()->PlanetID();
     my $planetid = $fl->DestinationPlanet();
     #my $planetid = 1;
