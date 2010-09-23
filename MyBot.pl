@@ -39,6 +39,7 @@ while(1) {
     } else {
         push(@$map_data,$current_line);
     }
+    last if eof();
 }
 sub old_DoTurn {
     my ($pw,$distance,$neighbor) = @_;
@@ -91,19 +92,24 @@ sub DoTurn {
   my($pw,$session) = @_;
 
   # Opening Move
-  #if ( $session->{move} == 1 ) {
+  if ( $session->{move} == 1 ) {
     FirstMove($pw,$session);
+
+   # Enough going on already
+   #} elsif ( $pw->MyFleets() > 10 ) {
+   #  return;
+
   # I will win
 
   # Attack to erase opponent
-  #} elsif ( Balance($pw) > 1 ) {
+  } elsif ( Balance($pw) > 3.00 ) {
   #} else {
-  #  Attack($pw,$session);
+    Attack($pw,$session);
 
   # Growth
-  #} else {
-  #  Grow($pw,$session);
-  #}
+  } else {
+    Grow($pw,$session);
+  }
   # Defensive
   # I will loose
 }
@@ -123,7 +129,7 @@ sub FirstMove {
 
   # Send ships to higest desire as long as we have enough ships
   for my $dest ( @moves ) {
-    my $tosend = $dest->{numships}+1;
+    my $tosend = $dest->{planet}->NumShips() +1;
     next if $tosend >= $numships;
     $pw->IssueOrder($myid,$dest->{planetid}, $tosend);
     $numships -= $tosend;
@@ -135,73 +141,48 @@ sub FirstMove {
 sub Grow {
   my($pw,$session) = @_;
 
-  my %target = Targets($pw);
-  my $distance = $session->{distance};
-
-  my $minsize = 6;
+  my %target = GrowTargets($pw);
   for my $myplanet ( $pw->MyPlanets() ) {
-    next unless $myplanet->NumShips() > $minsize+1;
-    my $myid = $myplanet->PlanetID();
-    next if $target{$myid}; # Don't send if under attack
-
-    # Calc distances that has not been calculated before
-    #for my $dest ( keys %target ) {
-    #  $distance->{$myid}{$dest} ||= $pw->Distance( $myid, $dest );
-    #}
-
-    # Don't sent to targets that has enough ships to defend
-
-    # Sort targets by 
-    #   1 XXX: Under attack
-    #   2 growthrate / ( distance * ships + 1 )
-    for my $dest ( keys %target ) {
-      my $planet = $pw->GetPlanet($dest);
-      my $dist = $distance->{$myid}{$dest} ||= $pw->Distance( $myid, $dest );
-      $target{$dest} = $planet->GrowthRate() / ( $dist * ( $planet->NumShips() + 10 ) );
-    }
-
-    # Tunables
-    my $orders = int $myplanet->NumShips() / $minsize;
-    my $maxorders = 4;
-    my $send = int $myplanet->NumShips() / ($maxorders+1);
-    $send = $minsize if $send < $minsize;
-
-    # XXX: sort by how hard to get
-    #for my $neighbor ( @{ $neighbor->{$myid} } ) {
-    for my $neighborid ( sort { $target{$b} <=> $target{$a} } keys %target ) {
-      #my $neighborid = $neighbor->PlanetID();
-      #next unless $target{$neighborid};
-      #my $send = int($myplanet->NumShips()/($maxorders+1));
-      $pw->IssueOrder($myid,$neighborid, $send);
-      #last;
-      last if --$orders == 0;
-      last if --$maxorders == 0;
-    }
+    SendFleets($pw,$session,$myplanet,%target);
   }
 }
 
 sub Attack {
   my($pw,$session) = @_;
 
-  # Targets
   my %target = AttackTargets($pw,$session);
-
-  # Check what each planet can attack
   for my $myplanet ( $pw->MyPlanets() ) {
-    my $myid        = $myplanet->PlanetID();
-    my $numships    = $myplanet->NumShips();
+    SendFleets($pw,$session,$myplanet,%target);
+  }
+}
 
-    # Get ranked targets
-    my @moves = RankTargets($pw,$session,$myplanet,%target);
+# Send ships from a source planet to a number of targets
+sub SendFleets {
+  my($pw,$session,$myplanet,%target) = @_;
 
-    # Send ships to higest desire as long as we have enough ships
-    for my $dest ( @moves ) {
-      my $tosend = $dest->{numships}+1;
-      next if $tosend >= $numships;
-      $pw->IssueOrder($myid,$dest->{planetid}, $tosend);
-      $numships -= $tosend;
-    }
-    last;
+  my $myid        = $myplanet->PlanetID();
+  my $numships    = $myplanet->NumShips();
+
+  # Don't send ships if I'm under attack and don't have enough defense
+  if ( $target{$myid} and $target{$myid}{incoming} ) {
+    $numships -= $target{$myid}{incoming};
+  };
+
+  my $minsize = 6;
+  return unless $numships > $minsize+1;
+
+  my @moves = RankTargets($pw,$session,$myplanet,%target);
+
+  # Tunables
+  my $orders = int $numships / $minsize;
+  my $maxorders = 4;
+  my $send = int $numships / ($maxorders+1);
+  $send = $minsize if $send < $minsize;
+
+  for my $dest ( @moves ) {
+    $pw->IssueOrder($myid,$dest->{planetid}, $send);
+    last if --$orders == 0;
+    last if --$maxorders == 0;
   }
 }
 
@@ -213,8 +194,9 @@ sub Desire {
 
   my $p1id = $p1->PlanetID();
   my $p2id = $p2->PlanetID();
-  my $dist = $session->{distance}{$p1id}{$p2id} ||= $pw->Distance( $p1,$p2 );
-  return $p2->GrowthRate / ( $dist + $p2->NumShips );
+  my $dist = $session->{distance}{$p1id}{$p2id} ||= $pw->Distance( $p1id,$p2id );
+  my $incoming = $p2->{incoming} || 0;
+  return $p2->GrowthRate()**1.5 / ( $dist + $p2->NumShips + $incoming );
 }
 
 # Rank all targets by desire from one planet
@@ -223,11 +205,16 @@ sub RankTargets {
   my($pw,$session,$myplanet,%target) = @_;
 
   while ( my($id,$dest) = each %target ) {
+    if ( $id == $myplanet->PlanetID() ) {
+      # Remove option to send ships to ourselves
+      delete $target{$id};
+      next;
+    }
     my $planet = $dest->{planet};
     $dest->{desire}   = Desire($pw,$session,$myplanet,$planet);
-    $dest->{numships} = $planet->NumShips();
+    #$dest->{numships} = $planet->NumShips();
     $dest->{planetid} = $id;
-   }
+  }
   return map $target{$_}, sort { $target{$b}{desire} <=> $target{$a}{desire} } keys %target;
 }
 
@@ -264,6 +251,7 @@ sub AttackTargets {
   for my $fl ( $pw->EnemyFleets() ) {
     my $planetid = $fl->DestinationPlanet();
     $target{$planetid}{planet} ||= $pw->GetPlanet($planetid);
+    $target{$planetid}{incoming} += $fl->NumShips();
   }
   return %target;
 }
@@ -274,10 +262,11 @@ sub GrowTargets {
   my $pw = shift;
 
   my %target = map {( $_->PlanetID() => { planet => $_ } )} 
-               $pw->NoMyPlanets();
+               $pw->NotMyPlanets();
   for my $fl ( $pw->EnemyFleets() ) {
     my $planetid = $fl->DestinationPlanet();
     $target{$planetid}{planet} ||= $pw->GetPlanet($planetid);
+    $target{$planetid}{incoming} += $fl->NumShips();
   }
   return %target;
 }
@@ -293,6 +282,9 @@ sub Balance {
     $myships += $planet->NumShips();
     $mygrowth += $planet->GrowthRate();
   }
+  for my $fl ( $pw->MyFleets() ) {
+    $myships += $fl->NumShips();
+  }
 
   my $enemyships = 0;
   my $enemygrowth = 0;
@@ -300,7 +292,11 @@ sub Balance {
     $enemyships += $planet->NumShips();
     $enemygrowth += $planet->GrowthRate();
   }
+  for my $fl ( $pw->EnemyFleets() ) {
+    $enemyships += $fl->NumShips();
+  }
 
+  return 100 unless $enemyships and $enemygrowth;
   return ( $myships/$enemyships + $mygrowth/$enemygrowth ) / 2;
 }
 
