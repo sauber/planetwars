@@ -9,11 +9,11 @@ use strict;
 sub x { use Data::Dumper; warn Data::Dumper->Dump([$_[1]], ["*** $_[0]"]); }
 
 our %options = (
-  openingmoves  => [qw( 1 2 3 4 5 )],
-  numfleets     => [qw( 10 25 50 75 100 150 200 300 )],
-  attackbalance => [qw(0.0 0.5 0.75 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0)],
-  minfleetsize  => [qw( 1 2 3 4 5 6 7 8 9 10)],
-  maxorders     => [qw(1 2 3 4 5 6 7 8 9 10)],
+  openingmoves  => [qw( 2 3 )],
+  numfleets     => [qw( 50 75 100 150 200 300 )],
+  attackbalance => [qw( 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0)],
+  minfleetsize  => [qw( 6 7 8 9 10 11 12 13 14 15)],
+  maxorders     => [qw(1 2 3 4 )],
 );
 
 our %score;

@@ -19,11 +19,11 @@ my $session = {
   move     => 0,
   distance => {},
   config   => {
-    openingmoves => 1,  # 1 2 3 4 5
+    openingmoves => 2,  # 1 2 3 4 5
     numfleets => 150, # 10, 25, 50, 75, 100, 150, 200, 300
     attackbalance => 1.5, # 0.0 0.5 0.75 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0
-    minfleetsize => 6, # 1 2 3 4 5 6 7 8 9 10
-    maxorders => 4, # 1 2 3 4 5 6 7 8 9 10
+    minfleetsize => 10, # 1 2 3 4 5 6 7 8 9 10
+    maxorders => 1, # 1 2 3 4 5 6 7 8 9 10
   },
 };
 
@@ -43,7 +43,7 @@ $session->{config}{numfleets}     = $opts{n} if $opts{n};
 $session->{config}{attackbalance} = $opts{b} if $opts{b};
 $session->{config}{minfleetsize}  = $opts{f} if $opts{f};
 $session->{config}{maxorders}     = $opts{a} if $opts{a};
-x 'session', $session;
+#x 'session', $session;
 #die;
 
 while(1) {
