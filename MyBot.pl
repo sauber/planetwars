@@ -4,27 +4,47 @@ use warnings;
 use strict;
 use PlanetWars;
 use POSIX;
+use Getopt::Std;
 
 # Some ideas to work on:
-#  - In first move take as many desired planets closeby as possible
-#  - 100% defensive will surely loose
-#  - Limit number of ships in flight
-#  - When having more ships and growth than opponent, attack harder to finish fast
 #  - When game is already won, stop sending ships
 #  - When game is already lost, go to most far away planet
+#  - When finding out that enemy is attacking neutral planet, make sure to take over after him to maximize his loss
+#  - Make sure each of my planets can withstand takeover attempt from nearest enemy
+#  - If my take over is inevitable, stop send more ships
 
 local $| = 1;
 my $map_data;
 my $session = {
-  distance => {},
   move     => 0,
+  distance => {},
+  config   => {
+    openingmoves => 1,  # 1 2 3 4 5
+    numfleets => 150, # 10, 25, 50, 75, 100, 150, 200, 300
+    attackbalance => 1.5, # 0.0 0.5 0.75 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0
+    minfleetsize => 6, # 1 2 3 4 5 6 7 8 9 10
+    maxorders => 4, # 1 2 3 4 5 6 7 8 9 10
+  },
 };
 
-sub x {
- use Data::Dumper;
- warn Data::Dumper->Dump([$_[1]], ["*** $_[0]"]);
-}
+sub x { use Data::Dumper; warn Data::Dumper->Dump([$_[1]], ["*** $_[0]"]); }
 
+# Read config params from environment
+#my %config = @ARGV;
+#my($k,$v);
+my(%opts);
+getopt('onbfa', \%opts);
+#for my $k ( keys %{$session->{config}} ) {
+#  next unless $ENV{$k};
+#  $session->{config}{$k} = $ENV{$k};
+#}
+$session->{config}{openingmoves}  = $opts{o} if $opts{o};
+$session->{config}{numfleets}     = $opts{n} if $opts{n};
+$session->{config}{attackbalance} = $opts{b} if $opts{b};
+$session->{config}{minfleetsize}  = $opts{f} if $opts{f};
+$session->{config}{maxorders}     = $opts{a} if $opts{a};
+x 'session', $session;
+#die;
 
 while(1) {
     my $current_line = <STDIN>;
@@ -46,17 +66,17 @@ sub DoTurn {
   my($pw,$session) = @_;
 
   # Opening Move
-  if ( $session->{move} == 1 ) {
+  if ( $session->{move} <= $session->{config}{openingmoves} ) {
     FirstMove($pw,$session);
 
    # Enough going on already
-   #} elsif ( $pw->MyFleets() > 10 ) {
-   #  return;
+   } elsif ( $pw->MyFleets() > $session->{config}{numfleets} ) {
+     return;
 
   # I will win
 
   # Attack to erase opponent
-  } elsif ( Balance($pw) > 1.50 ) {
+  } elsif ( Balance($pw) > $session->{config}{attackbalance} ) {
   #} else {
     Attack($pw,$session);
 
@@ -122,14 +142,14 @@ sub SendFleets {
     $numships -= $target{$myid}{incoming};
   };
 
-  my $minsize = 6;
+  my $minsize = $session->{config}{minfleetsize};
   return unless $numships > $minsize+1;
 
   my @moves = RankTargets($pw,$session,$myplanet,%target);
 
   # Tunables
   my $orders = int $numships / $minsize;
-  my $maxorders = 4;
+  my $maxorders = $session->{config}{maxorders};
   my $send = int $numships / ($maxorders+1);
   $send = $minsize if $send < $minsize;
 
