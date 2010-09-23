@@ -41,52 +41,6 @@ while(1) {
     }
     last if eof();
 }
-sub old_DoTurn {
-    my ($pw,$distance,$neighbor) = @_;
-
-    # Just send to closest for now
-    SendToClosest($pw,$distance,$neighbor);
-    return;
-
-      # (1) If we currently have a fleet in flight, just do nothing.
-    #if ($pw->MyFleets() > 0) {
-    #    return
-    #}
-
-      # (2) Find my strongest planet.
-    my $source = -1;
-    my $source_score = -999999.0;
-    my $source_num_ships = 0;
-    my @my_planets = $pw->MyPlanets();
-    foreach (@my_planets) {
-        #my $score = $_->NumShips();
-        my $score = $_->NumShips() / ( 1 + $_->GrowthRate() );
-        if ($score > $source_score) {      
-            $source_score = $score;
-            $source = $_->PlanetID();
-            $source_num_ships = $_->NumShips();
-        }
-    }
-
-      # (3) Find the weakest enemy or neutral planet.
-    my $dest = -1;
-    my $dest_score = -999999.0;
-    my @not_my_planets = $pw->NotMyPlanets();
-    foreach (@not_my_planets) {
-        #my $score = 1 / (1 + $_->NumShips());
-        my $score = (1 + $_->GrowthRate() ) / $_->NumShips();
-        if ($score > $dest_score) {
-            $dest_score = $score;
-            $dest = $_->PlanetID();
-        }
-    }
-
-  # (4) Send half the ships from my strongest planet to the weakest planet that I do not own.
-    if (($source >= 0) and ($dest >= 0)) {
-        my $num_ships = $source_num_ships / 2;
-        $pw->IssueOrder($source,$dest,ceil($num_ships));
-    }
-}
 
 sub DoTurn {
   my($pw,$session) = @_;
@@ -102,7 +56,7 @@ sub DoTurn {
   # I will win
 
   # Attack to erase opponent
-  } elsif ( Balance($pw) > 3.00 ) {
+  } elsif ( Balance($pw) > 1.50 ) {
   #} else {
     Attack($pw,$session);
 
@@ -196,7 +150,7 @@ sub Desire {
   my $p2id = $p2->PlanetID();
   my $dist = $session->{distance}{$p1id}{$p2id} ||= $pw->Distance( $p1id,$p2id );
   my $incoming = $p2->{incoming} || 0;
-  return $p2->GrowthRate()**1.5 / ( $dist + $p2->NumShips + $incoming );
+  return $p2->GrowthRate()**1.0 / ( $dist + $p2->NumShips + $incoming );
 }
 
 # Rank all targets by desire from one planet
@@ -298,52 +252,4 @@ sub Balance {
 
   return 100 unless $enemyships and $enemygrowth;
   return ( $myships/$enemyships + $mygrowth/$enemygrowth ) / 2;
-}
-
-sub old_CalcDistances {
-  my($pw) = @_;
-  my $distance;
-
-  my $count = 0;
-  my @planetids = map $_->PlanetID(), $pw->Planets;
-  for my $p1 ( @planetids ) {
-    for my $p2 ( @planetids ) {
-      next if $p1 == $p2;
-      my @index = sort { $a <=> $b } ( $p1, $p2 );
-      #$distance->{$index[0]}{$index[1]} ||= $pw->Distance( @index );
-      next if $distance->{$index[0]}{$index[1]};
-      $distance->{$index[0]}{$index[1]} = $pw->Distance( @index );
-      ++$count;
-    }
-  }
-  warn sprintf "There are %s planets and %s distances\n", scalar( $pw->Planets ), $count;
-  #x 'distance', $distance;
-  return $distance;
-}
-
-sub old_OrderNeighbors {
-  my($pw, $distance) = @_;
-  my $neighbor;
-  #my @planetids = map $_->PlanetID(), $pw->Planets;
-
-  #x 'distance', $distance;
-
-  for my $p1 ( $pw->Planets ) {
-    my @order = 
-      map $_->[0],
-      sort { $a->[1] <=> $b->[1] }
-      map {
-        # Find distance to each planet
-        my @index = sort { $a <=> $b } ( $p1->PlanetID(), $_->PlanetID() );
-        my $dist = $distance->{$index[0]}{$index[1]};
-        my $desire = int $dist / $_->GrowthRate();
-        #warn sprintf "Distance between %s and %s is %s\n", @index, $dist;
-        [ $_, $desire ];
-      }
-      grep { $p1->PlanetID() != $_->PlanetID }
-      $pw->Planets;
-      #@planetids;
-    $neighbor->{$p1->PlanetID()} = \@order;
-  }
-  return $neighbor;
 }
