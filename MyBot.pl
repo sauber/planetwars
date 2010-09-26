@@ -7,6 +7,12 @@ use POSIX;
 use Getopt::Std;
 
 # Some ideas to work on:
+#  - Make sure all owned planets are not lost by attack
+#  - Sacrifice remote if needed
+#  - Don't send reinforcement to my planet if not needed
+#  - Maximize loss by taken recently conquered neutral planets from opponent
+#  - When attacking new planet, do in full force
+#  - If a planet is not under attack, send everything it got
 #  - When game is already won, stop sending ships
 #  - When game is already lost, go to most far away planet
 #  - When finding out that enemy is attacking neutral planet, make sure to take over after him to maximize his loss
@@ -19,11 +25,15 @@ my $session = {
   move     => 0,
   distance => {},
   config   => {
-    openingmoves => 2,  # 1 2 3 4 5
-    numfleets => 150, # 10, 25, 50, 75, 100, 150, 200, 300
-    attackbalance => 1.5, # 0.0 0.5 0.75 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0
-    minfleetsize => 10, # 1 2 3 4 5 6 7 8 9 10
-    maxorders => 1, # 1 2 3 4 5 6 7 8 9 10
+    openingmoves => 3,  # 1 2 3 4 5
+    numfleets => 126, # 10, 25, 50, 75, 100, 150, 200, 300
+    attackbalance => 2.28, # 0.0 0.5 0.75 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0
+    minfleetsize => 8, # 1 2 3 4 5 6 7 8 9 10
+    maxorders => 2, # 1 2 3 4 5 6 7 8 9 10
+    distance => 4.56, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
+    ships => 2.54, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
+    incoming => 1.67, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
+    planetsize => 0.57, # 0.2 0.5 0.9 1.0 1.1 1.2 1.5 2
   },
 };
 
@@ -33,16 +43,20 @@ sub x { use Data::Dumper; warn Data::Dumper->Dump([$_[1]], ["*** $_[0]"]); }
 #my %config = @ARGV;
 #my($k,$v);
 my(%opts);
-getopt('onbfa', \%opts);
+getopt('onbfadsip', \%opts);
 #for my $k ( keys %{$session->{config}} ) {
 #  next unless $ENV{$k};
 #  $session->{config}{$k} = $ENV{$k};
 #}
-$session->{config}{openingmoves}  = $opts{o} if $opts{o};
-$session->{config}{numfleets}     = $opts{n} if $opts{n};
-$session->{config}{attackbalance} = $opts{b} if $opts{b};
-$session->{config}{minfleetsize}  = $opts{f} if $opts{f};
-$session->{config}{maxorders}     = $opts{a} if $opts{a};
+$session->{config}{openingmoves}  = int $opts{o} if $opts{o};
+$session->{config}{numfleets}     = int $opts{n} if $opts{n};
+$session->{config}{attackbalance} =     $opts{b} if $opts{b};
+$session->{config}{minfleetsize}  = int $opts{f} if $opts{f};
+$session->{config}{maxorders}     = int $opts{a} if $opts{a};
+$session->{config}{distance}      =     $opts{d} if $opts{d};
+$session->{config}{ships}         =     $opts{s} if $opts{s};
+$session->{config}{incoming}      =     $opts{i} if $opts{i};
+$session->{config}{planetsize}    =     $opts{p} if $opts{p};
 #x 'session', $session;
 #die;
 
@@ -98,15 +112,18 @@ sub FirstMove {
 
   # Get ranked targets
   my %target = FirstTargets($pw,$session);
+  #my %target = DefenseTargets($pw,$session);
   my @moves = RankTargets($pw,$session,$myplanet,%target);
   #x 'firstmoves', \@moves;
 
   # Send ships to higest desire as long as we have enough ships
   for my $dest ( @moves ) {
+    next if $session->{firstsent}{$dest->{planetid}};
     my $tosend = $dest->{planet}->NumShips() +1;
     next if $tosend >= $numships;
     $pw->IssueOrder($myid,$dest->{planetid}, $tosend);
     $numships -= $tosend;
+    ++$session->{firstsent}{$dest->{planetid}};
   }
 }
 
@@ -138,8 +155,8 @@ sub SendFleets {
   my $numships    = $myplanet->NumShips();
 
   # Don't send ships if I'm under attack and don't have enough defense
-  if ( $target{$myid} and $target{$myid}{incoming} ) {
-    $numships -= $target{$myid}{incoming};
+  if ( $target{$myid} and $target{$myid}{available} ) {
+    $numships = $target{$myid}{available};
   };
 
   my $minsize = $session->{config}{minfleetsize};
@@ -161,7 +178,7 @@ sub SendFleets {
 }
 
 # How attractive it is for one planet to attack another
-#   Desire = Growth / ( Distance + Ships )
+#   Desire = Growth / ( Distance + Ships + Incoming )
 #
 sub Desire {
   my($pw,$session,$p1,$p2) = @_;
@@ -170,7 +187,11 @@ sub Desire {
   my $p2id = $p2->PlanetID();
   my $dist = $session->{distance}{$p1id}{$p2id} ||= $pw->Distance( $p1id,$p2id );
   my $incoming = $p2->{incoming} || 0;
-  return $p2->GrowthRate()**1.0 / ( $dist + $p2->NumShips + $incoming );
+  return $p2->GrowthRate()**$session->{config}{planetsize} / ( 
+    $session->{config}{distance} * $dist          +
+    $session->{config}{ships}    *  $p2->NumShips +
+    $session->{config}{incoming} *  $incoming
+  );
 }
 
 # Rank all targets by desire from one planet
@@ -222,10 +243,14 @@ sub AttackTargets {
 
   my %target = map {( $_->PlanetID() => { planet => $_ } )} 
                $pw->EnemyPlanets();
-  for my $fl ( $pw->EnemyFleets() ) {
-    my $planetid = $fl->DestinationPlanet();
-    $target{$planetid}{planet} ||= $pw->GetPlanet($planetid);
-    $target{$planetid}{incoming} += $fl->NumShips();
+  #for my $fl ( $pw->EnemyFleets() ) {
+  #  my $planetid = $fl->DestinationPlanet();
+  #  $target{$planetid}{planet} ||= $pw->GetPlanet($planetid);
+  #  $target{$planetid}{incoming} += $fl->NumShips();
+  #}
+  my %defense = DefenseTargets($pw);
+  while ( my($planetid,$data) = each %defense ) {
+    $target{$planetid} = $data;
   }
   return %target;
 }
@@ -237,10 +262,58 @@ sub GrowTargets {
 
   my %target = map {( $_->PlanetID() => { planet => $_ } )} 
                $pw->NotMyPlanets();
-  for my $fl ( $pw->EnemyFleets() ) {
+  #for my $fl ( $pw->EnemyFleets() ) {
+  #  my $planetid = $fl->DestinationPlanet();
+  #  $target{$planetid}{planet} ||= $pw->GetPlanet($planetid);
+  #  $target{$planetid}{incoming} += $fl->NumShips();
+  #}
+
+  my %defense = DefenseTargets($pw);
+  while ( my($planetid,$data) = each %defense ) {
+    $target{$planetid} = $data;
+  }
+  return %target;
+}
+
+# My planets under attack that does not have sufficient defense
+#
+sub DefenseTargets {
+  my $pw = shift;
+
+  my %target = ();
+  my $arrival = 99999;
+  for my $fl ( $pw->Fleets() ) {
     my $planetid = $fl->DestinationPlanet();
     $target{$planetid}{planet} ||= $pw->GetPlanet($planetid);
-    $target{$planetid}{incoming} += $fl->NumShips();
+    if ( $fl->Owner() == 1 ) {
+      # Reinforcements I already sent
+      # XXX That will arrive in time
+      #$target{$planetid}{incoming} -= $fl->NumShips();
+      push @{ $target{$planetid}{rescue} }, $fl;
+    } else {
+      # Attacks
+      $target{$planetid}{incoming} += $fl->NumShips();
+      #push @{ $target{$planetid}{attack} }, $fl;
+      $arrival = $fl->TurnsRemaining if $fl->TurnsRemaining < $arrival;
+    }
+  }
+
+  # Does planet have enough ships to defend itself and surplus to send?
+  for my $planetid ( keys %target ) {
+    unless ( $target{$planetid}{incoming} ) {
+      # Not under attack - phew
+      delete $target{$planetid};
+      next;
+    }
+    my $rescue = 0;
+    for my $fl ( @{ $target{$planetid}{rescue} } ) {
+      $rescue += $fl->NumShips() if $fl->TurnsRemaining < $arrival;
+    }
+    my $sizeatarrival = $target{$planetid}{planet}->NumShips()
+                      + $target{$planetid}{planet}->GrowthRate * $arrival
+                      + $rescue;
+    $target{$planetid}{available} = $sizeatarrival
+                                  - $target{$planetid}{incoming};
   }
   return %target;
 }
