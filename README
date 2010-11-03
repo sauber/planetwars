@@ -1,0 +1,4 @@
+This is a Perl starter package for the http://ai-contest.com/ challenge.
+
+You can run the example Perl bot straight away on your computer by just
+running play_bot.sh
