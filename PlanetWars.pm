@@ -5,21 +5,22 @@ use POSIX;
 use Planet;
 use Fleet;
 
-
 sub new {
-    my ($class, $gameState) = @_;    
+    my ($class, $gameState) = @_;
     my $self = {
         _planets => [],
-        _fleets  => [],   
-    };    
+        _fleets  => [],
+    };
     bless $self, $class;
     $self->ParseGameState($gameState);
-    return $self;    
+    return $self;
 }
+
 sub NumPlanets {
     my ($self) = @_;
     return scalar(@{$self->{_planets}});
 }
+
 sub GetPlanet {
     my ($self, $planet_id) = @_;
     foreach (@{$self->{_planets}}) {
@@ -29,10 +30,12 @@ sub GetPlanet {
     }
     die('planet doesnt exist');
 }
+
 sub NumFleets {
     my ($self) = @_;
     return scalar(@{$self->{_fleets}});
 }
+
 sub GetFleet {
     my ($self, $fleet_id) = @_;
     foreach (@{$self->{_fleets}}) {
@@ -42,10 +45,12 @@ sub GetFleet {
     }
     die('fleet doesnt exist');
 }
+
 sub Planets {
     my ($self) = @_;
     return @{$self->{_planets}};
 }
+
 sub MyPlanets {
     my ($self) = @_;
     my @planets;
@@ -56,6 +61,7 @@ sub MyPlanets {
     }
     return @planets;
 }
+
 sub NeutralPlanets {
     my ($self) = @_;
     my @planets;
@@ -66,6 +72,7 @@ sub NeutralPlanets {
     }
     return @planets;
 }
+
 sub EnemyPlanets {
     my ($self) = @_;
     my @planets;
@@ -76,6 +83,7 @@ sub EnemyPlanets {
     }
     return @planets;
 }
+
 sub NotMyPlanets {
     my ($self) = @_;
     my @planets;
@@ -86,10 +94,12 @@ sub NotMyPlanets {
     }
     return @planets;
 }
+
 sub Fleets {
     my ($self) = @_;
     return @{$self->{_fleets}};
 }
+
 sub MyFleets {
     my ($self) = @_;
     my @fleets;
@@ -100,6 +110,7 @@ sub MyFleets {
     }
     return @fleets;
 }
+
 sub EnemyFleets {
     my ($self) = @_;
     my @fleets;
@@ -110,6 +121,7 @@ sub EnemyFleets {
     }
     return @fleets;
 }
+
 sub Distance {
     my ($self, $source_planet_id, $destination_planet_id) = @_;
     my $source_planet = $self->GetPlanet($source_planet_id);
@@ -118,10 +130,12 @@ sub Distance {
     my $dy = $source_planet->Y() - $destination_planet->Y();
     return abs(&POSIX::ceil(sqrt($dx * $dx + $dy * $dy)));
 }
+
 sub IssueOrder {
     my ($self, $source_planet, $destination_planet, $num_ships) = @_;
     print "$source_planet $destination_planet $num_ships\n";
 }
+
 sub IsAlive {
     my ($self, $player_id) = @_;
     foreach (@{$self->{_planets}}) {
@@ -136,24 +150,32 @@ sub IsAlive {
     }
     return 0;
 }
-sub ParseGameState{
+
+sub ParseGameState {
     my ($self, $gameState) = @_;
     my $planet_id = 0;
     my $fleet_id = 0;
 
     foreach (@$gameState) {
         if ($_ =~ m/P\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/) {;
-            push(@{$self->{_planets}},new Planet($planet_id,$1,$2,$3,$4,$5));
+            push(
+                @{$self->{_planets}},
+                new Planet($planet_id,$1,$2,$3,$4,$5)
+            );
             $planet_id++;
         } elsif ($_ =~ m/F\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/) {
-            push(@{$self->{_fleets}},new Fleet($fleet_id,$1,$2,$3,$4,$5,$6));
+            push(
+                @{$self->{_fleets}},
+                new Fleet($fleet_id,$1,$2,$3,$4,$5,$6)
+            );
             $fleet_id++;
         } else {
             die('invalid parseinput')
         };
     }
 }
-sub FinishTurn{
+
+sub FinishTurn {
     print "go\n";
 }
 
