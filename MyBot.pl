@@ -10,13 +10,15 @@ my $map_data;
 
 while(1) {
     my $current_line = <STDIN>;
-    if ($current_line =~ m/go/) {
+    next unless defined($current_line);
+    if ($current_line =~ /^stop/) {
+        last;
+    }
+    elsif ($current_line =~ m/go/) {
         my $pw = new PlanetWars($map_data);
         DoTurn($pw);
         $pw->FinishTurn();
         $map_data = [];
-    } elsif ($current_line eq "stop\n") {
-        last;
     } else {
         push(@$map_data,$current_line);
     }
