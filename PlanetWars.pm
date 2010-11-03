@@ -1,108 +1,11 @@
-#!/usr/bin/perl
-
+package PlanetWars;
 use warnings;
 use strict;
 use POSIX;
+use Planet;
+use Fleet;
 
-package Fleet;
-sub new {
-    my $class = shift;    
-    my $self = {
-        _fleet_id           => shift,
-        _owner              => shift,
-        _num_ships          => shift,
-        _source_planet      => shift,
-        _destination_planet => shift,
-        _total_trip_length  => shift,
-        _turns_remaining    => shift,
-    };    
-    bless $self, $class;
-    return $self;    
-}      
-sub FleetID {
-    my ($self) = @_;
-    return $self->{_fleet_id}
-}
-sub Owner {
-    my ($self) = @_;
-    return $self->{_owner}
-}
-sub NumShips {
-    my ($self) = @_;
-    return $self->{_num_ships}
-}
-sub SourcePlanet {
-    my ($self) = @_;
-    return $self->{_source_planet}
-}
-sub DestinationPlanet {
-    my ($self) = @_;
-    return $self->{_destination_planet}
-}
-sub TotalTripLength {
-    my ($self) = @_;
-    return $self->{_total_trip_length}
-}
-sub TurnsRemaining {
-    my ($self) = @_;
-    return $self->{_turns_remaining}
-}
 
-package Planet;
-sub new {
-    my $class = shift;    
-    my $self = {
-        _planet_id     => shift,
-        _X             => shift,
-        _Y             => shift,
-        _owner         => shift,
-        _num_ships     => shift,
-        _growth_rate   => shift,
-
-    };    
-    bless $self, $class;
-    return $self;    
-}
-sub PlanetID {
-    my ($self) = @_;
-    return $self->{_planet_id}
-}
-sub Owner {
-    my ($self, $new_owner) = @_;
-    if (defined $new_owner) {
-        $self->{_owner} = $new_owner;    
-    }
-    return $self->{_owner}
-}
-sub NumShips {
-    my ($self, $new_num_ships) = @_;
-    if (defined $new_num_ships) {
-        $self->{_num_ships} = $new_num_ships;
-    }
-    return $self->{_num_ships}
-}
-sub GrowthRate {
-    my ($self) = @_;
-    return $self->{_growth_rate}
-}
-sub X {
-    my ($self) = @_;
-    return $self->{_X}
-}
-sub Y {
-    my ($self) = @_;
-    return $self->{_Y}
-}
-sub AddShips {
-    my ($self, $amount) = @_;
-    $self->{_num_ships} += $amount;
-}
-sub RemoveShips {
-    my ($self, $amount) = @_;
-    $self->{_num_ships} -= $amount;
-}
-
-package PlanetWars;
 sub new {
     my ($class, $gameState) = @_;    
     my $self = {
@@ -253,4 +156,5 @@ sub ParseGameState{
 sub FinishTurn{
     print "go\n";
 }
+
 1;
