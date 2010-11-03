@@ -157,13 +157,15 @@ sub ParseGameState {
     my $fleet_id = 0;
 
     foreach (@$gameState) {
-        if ($_ =~ m/P\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/) {;
+        next if /\s*#/; # Skip comments.
+
+        if ($_ =~ m/^\s*P\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/) {;
             push(
                 @{$self->{_planets}},
                 new Planet($planet_id,$1,$2,$3,$4,$5)
             );
             $planet_id++;
-        } elsif ($_ =~ m/F\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/) {
+        } elsif ($_ =~ m/^\s*F\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/) {
             push(
                 @{$self->{_fleets}},
                 new Fleet($fleet_id,$1,$2,$3,$4,$5,$6)
