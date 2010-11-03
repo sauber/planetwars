@@ -79,6 +79,9 @@ while(1) {
 sub DoTurn {
   my($pw,$session) = @_;
 
+  # Run simulation
+  Simulation($pw,$session);
+
   # Opening Move
   if ( $session->{move} <= $session->{config}{openingmoves} ) {
     FirstMove($pw,$session);
@@ -277,7 +280,7 @@ sub GrowTargets {
 
 # My planets under attack that does not have sufficient defense
 #
-sub DefenseTargets {
+sub  DefenseTargets {
   my $pw = shift;
 
   my %target = ();
@@ -345,4 +348,176 @@ sub Balance {
 
   return 100 unless $enemyships and $enemygrowth;
   return ( $myships/$enemyships + $mygrowth/$enemygrowth ) / 2;
+}
+
+########################################################################
+# DEFENSE
+#
+# Run simulation of outcome of all fleets
+# For all planets that will be lost at some point, calculate the cost
+# of rescue.
+# Any planets that will be lost in next turn and cannot be rescued later,
+# give up and make ships available.
+# Rescue as many as possible starting with lowest cost.
+# Launch immediately only if needed. Otherwise reserve.
+# Any ships not needed for defense or rescue can be used for attack.
+#
+########################################################################
+
+# Determine if any planets are directly under attack
+#
+#sub DefenseNeeded {
+#  my($pw,$session) = @_;
+#
+#  # Are there any enemy fleets at all?
+#  return undef unless $pw->EnemyFleets();
+#
+#  # List of planets I own
+#  my %planetid;
+#  for my $planet ( $pw->MyPlanets() ) {
+#    ++$planetid{$planet->PlanetID()};
+#  }
+#
+#  # Are there any enemy fleets towards my planets?
+#  for my $fl ( $pw->EnemyFleets() ) {
+#    return 1 if $planetid{$fl->DestinationPlanet()};
+#  }
+#
+#  return undef;
+#}
+
+# List of Planet that are insufficiently defended
+#
+#sub PlanetsNeedResuce {
+#  my($pw,$session) = @_;
+#
+#  my %lost;
+#  for my $planet ( $pw->MyPlanets() ) {
+#    next unless my $turn = PlanetNeedDefense($pw,$session,$planet);
+#    $lost{$planet}{battle} = $turn;
+#  }
+#  return %lost;
+#}
+
+# Check if a planet need defense
+# Returns number of ships needed in each turn
+# Returns undef if no ships are needed
+#
+#sub PlanetNeedDefense {
+#  my($pw,$session,$planet) = @_;
+#
+#  my $planetid = $planet->PlanetID();
+#
+#  my @enemy;
+#  for my $fl ( $pw->EnemyFleets() ) {
+#    push @enemy, $fl if $fl->DestinationPlanet() == $planetid;
+#  }
+#  return $planet->NumShips() unless @enemy; # No attack
+#
+#  my @rescue;
+#  for my $fl ( $pw->MyFleets() ) {
+#    push @rescue, $fl if $fl->DestinationPlanet() == $planetid;
+#  }
+#
+#  # Simulate outcome
+#  BattleSimulation($pw,$session,$planet,\@enemy,\@rescue);
+#}
+
+# Of the planets that need defense, which ones are actually possible
+#
+#sub PlanetsDefendable {
+#  my($pw,$session,$planet) = @_;
+#}
+
+
+
+########################################################################
+### SIMULATION
+########################################################################
+
+# Complete Simulation.
+# Record outcome of all current fleets attacking planets.
+#
+sub Simulation {
+  my($pw,$session) = @_;
+
+  my %arrival;
+  # Sum all arrivals
+  for my $fl ( $pw->Fleets() ) {
+    my $planetid = $fl->DestinationPlanet();
+    my $numships = $fl->NumShips();
+    my $owner = $fl->Owner();
+    my $turn = $fl->TurnsRemaining();
+    $numships *= -1 if $owner == 2;
+    $arrival{$planetid}[$turn] += $numships;
+  }
+
+  # Calculate result in each turn
+  my %simulation;
+  for my $planetid ( keys %arrival ) {
+    my $planet = $pw->GetPlanet($planetid);
+    my @numships;
+    $numships[0] = {
+      owner    => $planet->Owner(),
+      numships => $planet->NumShips(),
+    };
+    my $grow = $planet->GrowthRate();
+    for my $n ( 1 .. $#{ $arrival{$planetid} } ) {
+      my $prevships = $numships[$n-1]{numships};
+      my $prevowner = $numships[$n-1]{owner};
+      my $delta = $arrival{$planetid}[$n];
+
+      # Arrival
+      if ( $delta ) {
+        # Who arrives
+        my $arriver = 1;
+        if ( $delta < 0 ) {
+          # Enemy arrive
+          $delta = -$delta;
+          $arriver = 2;
+        }
+
+        # Arrival to neutral
+        if ( $prevowner == 0 ) {
+          if ( $prevships >= $delta ) {
+            # Failed takeover
+            $numships[$n]{owner}    = $prevowner;
+            $numships[$n]{numships} = $prevships - $delta;
+          } else {
+            # Successful takeover
+            $numships[$n]{owner}    = $arriver;
+            $numships[$n]{numships} = $delta - $prevships;
+            $numships[$n]{takeover} = 1;
+          }
+
+        # Arrival to already owned planet
+        } elsif ( $prevowner == $arriver ) {
+          $numships[$n]{owner}    = $prevowner;
+          $numships[$n]{numships} = $prevships + $grow;
+
+        # Arrival to not owned planet
+        } else {
+          if ( $prevships + $grow > $delta ) {
+            # Failed takeover
+            $numships[$n]{owner}    = $prevowner;
+            $numships[$n]{numships} = $prevships + $grow - $delta;
+          } else {
+            # Successful takeover
+            $numships[$n]{owner}    = $arriver;
+            $numships[$n]{numships} = $delta - ( $prevships + $grow );
+            $numships[$n]{takeover} = 1;
+          }
+        }
+
+      # No arrival
+      } else {
+        $numships[$n]{owner}    = $prevowner;
+        $numships[$n]{numships} = $prevships;
+        $numships[$n]{numships} += $grow if $prevowner > 0;
+      } 
+    }
+
+    $simulation{$planetid} = \@numships;
+  }
+  $session->{simulation} = \%simulation;
 }
