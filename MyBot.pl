@@ -164,7 +164,7 @@ sub LastDesperateMove {
   my $farplanet;
   my $distance = 0;
   for my $target ( keys %{ $session->{distance}{$myid} } ) {
-    next if $pw->GetPlanet($target)->Owner > 0;
+    next if $pw->GetPlanet($target)->Owner > 0 and $pw->NeutralPlanets;
     if ( $session->{distance}{$myid}{$target} > $distance ) {
       $distance = $session->{distance}{$myid}{$target};
       $farplanet = $target;
@@ -555,6 +555,7 @@ sub PlanetRescueCost {
 
 # Complete Simulation.
 # Record outcome of all current fleets attacking planets.
+# XXX: Add simulation of all planets that are not target of fleets
 #
 sub Simulation {
   my($pw,$session) = @_;
