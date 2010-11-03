@@ -28,7 +28,7 @@ my $session = {
     openingmoves => 3,  # 1 2 3 4 5
     numfleets => 126, # 10, 25, 50, 75, 100, 150, 200, 300
     attackbalance => 2.28, # 0.0 0.5 0.75 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0
-    minfleetsize => 8, # 1 2 3 4 5 6 7 8 9 10
+    minfleetsize => 1, # 1 2 3 4 5 6 7 8 9 10
     maxorders => 2, # 1 2 3 4 5 6 7 8 9 10
     distance => 4.56, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
     ships => 2.54, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
@@ -87,6 +87,7 @@ sub DoTurn {
   my @defend = LoosingTargets($pw,$session);
 
   return if LastDesperateMove($pw,$session);
+  return if AlreadyWon($pw,$session);
 
   # Opening Move
   if ( $session->{move} <= $session->{config}{openingmoves} ) {
@@ -99,9 +100,9 @@ sub DoTurn {
   # I will win
 
   # Attack to erase opponent
-  } elsif ( Balance($pw) > $session->{config}{attackbalance} ) {
+  #} elsif ( Balance($pw) > $session->{config}{attackbalance} ) {
   #} else {
-    Attack($pw,$session);
+  #  Attack($pw,$session);
 
   # Growth
   } else {
@@ -139,6 +140,8 @@ sub FirstMove {
 # Last Desperate Move
 # I have only one planets left, and it will be taken over.
 # Fly ships as far away as possible
+# XXX: If there are other ships in flight, go to same destination
+# XXX: Prefer planets that I can concur
 #
 sub LastDesperateMove {
   my($pw,$session) = @_;
@@ -150,8 +153,8 @@ sub LastDesperateMove {
   return undef unless $session->{loosing}{$myid}; # I'm not loosing my planet
   return undef unless $session->{loosing}{$myid} == 1; # I'm not loosing in next turn
 
-  # Find Distances to all planets
-  for my $target ( $pw->Planets ) {
+  # Find Distances to all neutralplanets
+  for my $target ( $pw->NeutralPlanets ) {
     my $targetid = $target->PlanetID;
     next if $targetid == $myid;
     $session->{distance}{$myid}{$targetid} ||= $pw->Distance( $myid,$targetid );
@@ -161,6 +164,7 @@ sub LastDesperateMove {
   my $farplanet;
   my $distance = 0;
   for my $target ( keys %{ $session->{distance}{$myid} } ) {
+    next if $pw->GetPlanet($target)->Owner > 0;
     if ( $session->{distance}{$myid}{$target} > $distance ) {
       $distance = $session->{distance}{$myid}{$target};
       $farplanet = $target;
@@ -171,6 +175,30 @@ sub LastDesperateMove {
   warn sprintf "Making Desperate move from %s to %s with %s ships\n",
     $myid,$farplanet, $myplanet->NumShips;
   $pw->IssueOrder($myid,$farplanet, $myplanet->NumShips);
+  return 1;
+}
+
+# If I have no planets pending to be lost, and enemy has no planets that
+# he will keep, then stop sending any more ships.
+#
+sub AlreadyWon {
+  my($pw,$session) = @_;
+
+  return undef if $session->{move} < 2;
+  # Enemy will keep or concur a planet
+  for my $planet ( $pw->Planets ) {
+    my $planetid = $planet->PlanetID();
+    #warn "Checking planet id $planetid\n";
+    return undef if $planet->Owner == 2 and not $session->{simulation}{$planetid};
+    if ( my $numships = $session->{simulation}{$planetid} ) {
+      #x "Enemy planet $planetid move $#$numships", $numships;
+      return undef if $numships->[$#$numships]{owner} == 2;
+    }
+  }
+
+  # I don't loose any, and he keeps nothing
+  #x 'already won', $session->{simulation};
+  warn "Already won in move $session->{move}\n";
   return 1;
 }
 
