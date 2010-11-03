@@ -79,8 +79,12 @@ while(1) {
 sub DoTurn {
   my($pw,$session) = @_;
 
+  # I have no planets
+  return unless $pw->MyPlanets;
+
   # Run simulation
   Simulation($pw,$session);
+  DefenseNeeded($pw,$session);
 
   # Opening Move
   if ( $session->{move} <= $session->{config}{openingmoves} ) {
@@ -189,6 +193,7 @@ sub Desire {
   my $p1id = $p1->PlanetID();
   my $p2id = $p2->PlanetID();
   my $dist = $session->{distance}{$p1id}{$p2id} ||= $pw->Distance( $p1id,$p2id );
+  $dist = $dist ** 1.5;
   my $incoming = $p2->{incoming} || 0;
   return $p2->GrowthRate()**$session->{config}{planetsize} / ( 
     $session->{config}{distance} * $dist          +
@@ -428,6 +433,27 @@ sub Balance {
 #sub PlanetsDefendable {
 #  my($pw,$session,$planet) = @_;
 #}
+
+# Check for takeover events for my planets
+#
+sub DefenseNeeded {
+  my($pw,$session) = @_;
+
+  my @lost;
+  for my $planet ( $pw->MyPlanets ) {
+    my $planetid = $planet->PlanetID();
+    if ( my $numships = $session->{simulation}{$planetid} ) {
+      for my $turn ( 1 .. $#$numships ) {
+        if ( $numships->[$turn]{takeover} ) {
+          warn sprintf "Planet %s will be taken over in %s turns\n", 
+            $planetid, $turn;
+          push @lost, $planetid;
+          next;
+        }
+      }
+    }
+  }
+}
 
 
 
