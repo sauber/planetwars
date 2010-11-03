@@ -84,7 +84,9 @@ sub DoTurn {
 
   # Run simulation
   Simulation($pw,$session);
-  DefenseNeeded($pw,$session);
+  my @defend = LoosingTargets($pw,$session);
+
+  return if LastDesperateMove($pw,$session);
 
   # Opening Move
   if ( $session->{move} <= $session->{config}{openingmoves} ) {
@@ -132,6 +134,44 @@ sub FirstMove {
     $numships -= $tosend;
     ++$session->{firstsent}{$dest->{planetid}};
   }
+}
+
+# Last Desperate Move
+# I have only one planets left, and it will be taken over.
+# Fly ships as far away as possible
+#
+sub LastDesperateMove {
+  my($pw,$session) = @_;
+
+  return undef if $pw->MyPlanets() > 1; # I have more than one planet
+
+  my($myplanet   )= $pw->MyPlanets();
+  my $myid        = $myplanet->PlanetID();
+  return undef unless $session->{loosing}{$myid}; # I'm not loosing my planet
+  return undef unless $session->{loosing}{$myid} == 1; # I'm not loosing in next turn
+
+  # Find Distances to all planets
+  for my $target ( $pw->Planets ) {
+    my $targetid = $target->PlanetID;
+    next if $targetid == $myid;
+    $session->{distance}{$myid}{$targetid} ||= $pw->Distance( $myid,$targetid );
+  }
+
+  # Find planet most far away
+  my $farplanet;
+  my $distance = 0;
+  for my $target ( keys %{ $session->{distance}{$myid} } ) {
+    if ( $session->{distance}{$myid}{$target} > $distance ) {
+      $distance = $session->{distance}{$myid}{$target};
+      $farplanet = $target;
+    }
+  }
+
+  return undef unless $farplanet;
+  warn sprintf "Making Desperate move from %s to %s with %s ships\n",
+    $myid,$farplanet, $myplanet->NumShips;
+  $pw->IssueOrder($myid,$farplanet, $myplanet->NumShips);
+  return 1;
 }
 
 # Send fleets to closest planets
@@ -436,23 +476,47 @@ sub Balance {
 
 # Check for takeover events for my planets
 #
-sub DefenseNeeded {
+sub LoosingTargets {
   my($pw,$session) = @_;
 
-  my @lost;
+  my %lost;
+  my %kept;
   for my $planet ( $pw->MyPlanets ) {
     my $planetid = $planet->PlanetID();
     if ( my $numships = $session->{simulation}{$planetid} ) {
       for my $turn ( 1 .. $#$numships ) {
         if ( $numships->[$turn]{takeover} ) {
-          warn sprintf "Planet %s will be taken over in %s turns\n", 
-            $planetid, $turn;
-          push @lost, $planetid;
+          #warn sprintf "Planet %s will be taken over in %s turns\n", 
+          #  $planetid, $turn;
+          $lost{$planetid} = $turn;
           next;
         }
       }
     }
+    # A cached list of planets not lost
+    ++$kept{$planetid} unless $lost{$planetid};
   }
+
+
+  $session->{loosing} = \%lost;
+  $session->{keeping} = \%kept;
+  return keys %lost;
+}
+
+# Calculate Cost of Rescue on Planet
+#
+sub PlanetRescueCost {
+  my($pw,$session,$planetid) = @_;
+
+  my %sources;
+  if ( $session->{keeping} ) {
+    # Only use planets with surplus capacity
+    %sources = %{ $session->{keeping} };
+  } else {
+    %sources = %{ $session->{loosing} };
+    delete $sources{$planetid}; # Cannot send rescue from oneself
+  }
+
 }
 
 
