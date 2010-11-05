@@ -96,13 +96,13 @@ sub DoTurn {
   return unless $pw->MyPlanets;              # No ships available
   return if FirstMove($pw,$session);         # Take nearby planets quickly
   return if AlreadyWon($pw,$session);        # I will win
-  return if LastDesperateMove($pw,$session); # Abandon last planet
 
   # Run simulation
   Simulation($pw,$session);
   #my @defend = LoosingTargets($pw,$session);
 
   # Defense
+  return if LastDesperateMove($pw,$session); # Abandon last planet
   DefendMove($pw,$session);
 
 
@@ -297,7 +297,7 @@ sub DefendPlanet {
   #x "DefendPlanet $planetid", $session->{loosing}{$planetid};
   my $turns = $session->{loosing}{$planetid};
   my $needships = $session->{simulation}{$planetid}[$turns]{numships};
-  return undef if $numships <= 0;
+  return undef if $needships <= 0;
   warn "In $turns turns planet $planetid need $needships ships\n";
 
   # Which planets are within reach
