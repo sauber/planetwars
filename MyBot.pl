@@ -100,7 +100,10 @@ sub DoTurn {
 
   # Run simulation
   Simulation($pw,$session);
-  my @defend = LoosingTargets($pw,$session);
+  #my @defend = LoosingTargets($pw,$session);
+
+  # Defense
+  DefendMove($pw,$session);
 
 
   # Opening Move
@@ -148,9 +151,14 @@ sub SendShips {
     return undef;
   }
   if ( $planet->Owner != 1 ) {
-    warn sprintf "Error: Planet %s is not mine", $source;
+    warn sprintf "Error: Planet %s is not mine\n", $source;
     return undef;
   }
+  if ( $ships < 1 ) {
+    warn sprintf "Error: Ships %s are less than one\n", $ships;
+    return undef;
+  }
+
   $pw->IssueOrder($source, $dest, $ships);
   my $newcount = $planet->NumShips - $ships;
   $planet->NumShips($newcount);
@@ -202,6 +210,7 @@ sub LastDesperateMove {
   my $myid        = $myplanet->PlanetID();
   return undef unless $session->{loosing}{$myid}; # I'm not loosing my planet
   return undef unless $session->{loosing}{$myid} == 1; # I'm not loosing in next turn
+  warn "Attempting Desperate Move\n";
 
   # Find Distances to all neutralplanets
   for my $target ( $pw->NeutralPlanets ) {
@@ -251,6 +260,76 @@ sub AlreadyWon {
   #x 'already won', $session->{simulation};
   warn "Already won in move $session->{move}\n";
   return 1;
+}
+
+# Defend as much as possible
+#
+sub DefendMove {
+  my($pw,$session) = @_;
+
+  # For all planets that need defense, what is cost of defending.
+  my %defend = map { $_ => 1 } LoosingTargets($pw,$session);
+  for my $planetid ( keys %defend ) {
+    $defend{$planetid} = PlanetRescueCost($pw,$session,$planetid)
+  }
+  #x 'defense costs', \%defend if %defend;
+
+  # Defend all planets in order of cost
+  for my $planetid ( sort { $defend{$a} <=> $defend{$b} } keys %defend ) {
+    DefendPlanet($pw,$session,$planetid);
+  }
+
+  return undef;
+}
+
+# Defend a planet by sending rescue from planets that are close enough
+#
+sub DefendPlanet {
+  my($pw,$session,$planetid) = @_;
+
+  # Make sure all distances are known
+  for my $planet ( $pw->MyPlanets ) {
+    my $id = $planet->PlanetID;
+    $session->{distance}{$planetid}{$id} ||= $pw->Distance($planetid,$id);
+  }
+
+  # How soon is rescue required, and how much
+  #x "DefendPlanet $planetid", $session->{loosing}{$planetid};
+  my $turns = $session->{loosing}{$planetid};
+  my $needships = $session->{simulation}{$planetid}[$turns]{numships};
+  return undef if $numships <= 0;
+  warn "In $turns turns planet $planetid need $needships ships\n";
+
+  # Which planets are within reach
+  my @nearby = 
+    grep {
+      my $id = $_->PlanetID;
+      my $dist = $session->{distance}{$planetid}{$id};
+      $id != $planetid and
+      $dist <= $turns and
+      not defined $session->{loosing}{$id};
+    }
+    $pw->MyPlanets;
+
+  # Check if we can send enough
+  my %order;
+  for my $planet ( @nearby ) {
+    my $sending = ( $planet->NumShips >= $needships )
+                ? $needships
+                : $planet->NumShips;
+    #SendShips($pw, $session, $planet->PlanetID, $planetid, $sending, 'Rescue');
+    $order{$planet->PlanetID} = $sending;
+    $needships -= $sending;
+    last if $needships <= 0;
+  }
+
+  if ( $needships <= 0 ) {
+    while ( my($source,$sending) = each %order ) {
+      SendShips($pw, $session, $source, $planetid, $sending, 'Rescue');
+    }
+  } else {
+    warn "Planet $planetid cannot be rescued\n";
+  }
 }
 
 # Send fleets to closest planets
@@ -588,15 +667,26 @@ sub LoosingTargets {
 sub PlanetRescueCost {
   my($pw,$session,$planetid) = @_;
 
-  my %sources;
-  if ( $session->{keeping} ) {
-    # Only use planets with surplus capacity
-    %sources = %{ $session->{keeping} };
-  } else {
-    %sources = %{ $session->{loosing} };
-    delete $sources{$planetid}; # Cannot send rescue from oneself
-  }
+  #my %sources;
+  #if ( $session->{keeping} ) {
+  #  # Only use planets with surplus capacity
+  #  %sources = %{ $session->{keeping} };
+  #} else {
+  #  %sources = %{ $session->{loosing} };
+  #  delete $sources{$planetid}; # Cannot send rescue from oneself
+  #}
 
+  # For now just the end number of enemy ships it will have after simulation
+  if ( my $numships = $session->{simulation}{$planetid} ) {
+    #warn sprintf "PlanetRescueCost: planet %s, turns %s, enemy %s\n",
+    #  $planetid, $#$numships, $numships->[$#$numships]{numships};
+    return $numships->[$#$numships]{numships};
+  } else {
+    # Planet not simulated
+    #warn sprintf "PlanetRescueCost: planet %s, ships %s\n",
+    #  $planetid, $pw->GetPlanet($planetid)->NumShips();
+    return 0 - $pw->GetPlanet($planetid)->NumShips();
+  }
 }
 
 
