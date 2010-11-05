@@ -18,6 +18,17 @@ use Getopt::Std;
 #  - When finding out that enemy is attacking neutral planet, make sure to take over after him to maximize his loss
 #  - Make sure each of my planets can withstand takeover attempt from nearest enemy
 #  - If my take over is inevitable, stop send more ships
+#  - After simulation categorize my planets:
+#    * Will loose them - but can prevent
+#    * Will loose them - cannot prevent - amount of ships available
+#    * Will not loose - amount of ships available
+#  - Defend as many as possible
+#  - Add remaining to list of planets that will be lost
+#  - For remaining planet with available ships
+#    * Choose three planets that are most close to most desired enemy/neutral
+#    * For each attacker, find nearests hub
+#    * All other planets send to nearest hub
+#
 
 local $| = 1;
 my $map_data;
@@ -28,7 +39,7 @@ my $session = {
     openingmoves => 3,  # 1 2 3 4 5
     numfleets => 126, # 10, 25, 50, 75, 100, 150, 200, 300
     attackbalance => 2.28, # 0.0 0.5 0.75 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0
-    minfleetsize => 1, # 1 2 3 4 5 6 7 8 9 10
+    minfleetsize => 20, # 1 2 3 4 5 6 7 8 9 10
     maxorders => 2, # 1 2 3 4 5 6 7 8 9 10
     distance => 4.56, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
     ships => 2.54, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
@@ -81,23 +92,24 @@ while(1) {
 sub DoTurn {
   my($pw,$session) = @_;
 
-  # I have no planets
-  return unless $pw->MyPlanets;
+  # First some easy moves
+  return unless $pw->MyPlanets;              # No ships available
+  return if FirstMove($pw,$session);         # Take nearby planets quickly
+  return if AlreadyWon($pw,$session);        # I will win
+  return if LastDesperateMove($pw,$session); # Abandon last planet
 
   # Run simulation
   Simulation($pw,$session);
   my @defend = LoosingTargets($pw,$session);
 
-  return if LastDesperateMove($pw,$session);
-  return if AlreadyWon($pw,$session);
 
   # Opening Move
-  if ( $session->{move} <= $session->{config}{openingmoves} ) {
-    FirstMove($pw,$session);
+  #if ( $session->{move} <= $session->{config}{openingmoves} ) {
+  #  FirstMove($pw,$session);
 
-   # Enough going on already
-   } elsif ( $pw->MyFleets() > $session->{config}{numfleets} ) {
-     return;
+  # Enough going on already
+  if ( $pw->MyFleets() > $session->{config}{numfleets} ) {
+    return;
 
   # I will win
 
@@ -114,8 +126,41 @@ sub DoTurn {
   # I will loose
 }
 
+# Issue an order to send ships
+#
+sub SendShips {
+  my($pw,$session,$source,$dest,$ships,$reason) = @_;
+
+  warn "Order $session->{move}: $source -> $dest $ships: $reason\n";
+  # Check for mistakes
+  my $planet = $pw->GetPlanet($source);
+  unless ( $planet ) {
+    warn sprintf "Error: Planet %s does not exist\n", $source;
+    return undef;
+  }
+  unless ( $pw->GetPlanet($dest) ) {
+    warn sprintf "Error: Planet %s does not exist\n", $dest;
+    return undef;
+  }
+  if ( $planet->NumShips < $ships ) {
+    warn sprintf "Error: Planet %s only has %s ships\n",
+      $source, $planet->NumShips;
+    return undef;
+  }
+  if ( $planet->Owner != 1 ) {
+    warn sprintf "Error: Planet %s is not mine", $source;
+    return undef;
+  }
+  $pw->IssueOrder($source, $dest, $ships);
+  my $newcount = $planet->NumShips - $ships;
+  $planet->NumShips($newcount);
+}
+
 sub FirstMove {
   my($pw,$session) = @_;
+
+  return undef if $session->{move} > $session->{config}{openingmoves};
+
   my $distance = $session->{distance};
 
   my($myplanet   )= $pw->MyPlanets();
@@ -133,10 +178,12 @@ sub FirstMove {
     next if $session->{firstsent}{$dest->{planetid}};
     my $tosend = $dest->{planet}->NumShips() +1;
     next if $tosend >= $numships;
-    $pw->IssueOrder($myid,$dest->{planetid}, $tosend);
+    #$pw->IssueOrder($myid,$dest->{planetid}, $tosend);
+    SendShips($pw,$session,$myid,$dest->{planetid}, $tosend,'FirstMove');
     $numships -= $tosend;
     ++$session->{firstsent}{$dest->{planetid}};
   }
+  return 1;
 }
 
 # Last Desperate Move
@@ -144,6 +191,7 @@ sub FirstMove {
 # Fly ships as far away as possible
 # XXX: If there are other ships in flight, go to same destination
 # XXX: Prefer planets that I can concur
+# XXX: If all my planets will be taken over in next move
 #
 sub LastDesperateMove {
   my($pw,$session) = @_;
@@ -174,9 +222,10 @@ sub LastDesperateMove {
   }
 
   return undef unless $farplanet;
-  warn sprintf "Making Desperate move from %s to %s with %s ships\n",
-    $myid,$farplanet, $myplanet->NumShips;
-  $pw->IssueOrder($myid,$farplanet, $myplanet->NumShips);
+  #warn sprintf "Making Desperate move from %s to %s with %s ships\n",
+  #  $myid,$farplanet, $myplanet->NumShips;
+  #$pw->IssueOrder($myid,$farplanet, $myplanet->NumShips);
+  SendShips($pw, $session, $myid, $farplanet, $myplanet->NumShips, 'LastDesperateMove');
   return 1;
 }
 
@@ -248,9 +297,10 @@ sub SendFleets {
   $send = $minsize if $send < $minsize;
 
   for my $dest ( @moves ) {
-    $pw->IssueOrder($myid,$dest->{planetid}, $send);
-    last if --$orders == 0;
-    last if --$maxorders == 0;
+    #$pw->IssueOrder($myid,$dest->{planetid}, $send);
+    SendShips($pw, $session, $myid,$dest->{planetid}, $send, 'SendFleets');
+    last if --$orders <= 0;
+    last if --$maxorders <= 0;
   }
 }
 
