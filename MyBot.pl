@@ -39,7 +39,7 @@ my $session = {
     openingmoves => 3,  # 1 2 3 4 5
     numfleets => 126, # 10, 25, 50, 75, 100, 150, 200, 300
     attackbalance => 2.28, # 0.0 0.5 0.75 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0
-    minfleetsize => 20, # 1 2 3 4 5 6 7 8 9 10
+    minfleetsize => 8, # 1 2 3 4 5 6 7 8 9 10
     maxorders => 2, # 1 2 3 4 5 6 7 8 9 10
     distance => 4.56, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
     ships => 2.54, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
@@ -95,15 +95,16 @@ sub DoTurn {
   # First some easy moves
   return unless $pw->MyPlanets;              # No ships available
   return if FirstMove($pw,$session);         # Take nearby planets quickly
-  return if AlreadyWon($pw,$session);        # I will win
 
   # Run simulation
   Simulation($pw,$session);
   #my @defend = LoosingTargets($pw,$session);
 
+  return if AlreadyWon($pw,$session);        # I will win
+
   # Defense
   return if LastDesperateMove($pw,$session); # Abandon last planet
-  DefendMove($pw,$session);
+  #DefendMove($pw,$session);
 
 
   # Opening Move
@@ -117,9 +118,9 @@ sub DoTurn {
   # I will win
 
   # Attack to erase opponent
-  #} elsif ( Balance($pw) > $session->{config}{attackbalance} ) {
+  } elsif ( Balance($pw) > $session->{config}{attackbalance} ) {
   #} else {
-  #  Attack($pw,$session);
+    Attack($pw,$session);
 
   # Growth
   } else {
@@ -195,35 +196,56 @@ sub FirstMove {
 }
 
 # Last Desperate Move
-# I have only one planets left, and it will be taken over.
 # Fly ships as far away as possible
-# XXX: If there are other ships in flight, go to same destination
-# XXX: Prefer planets that I can concur
-# XXX: If all my planets will be taken over in next move
 #
 sub LastDesperateMove {
   my($pw,$session) = @_;
 
-  return undef if $pw->MyPlanets() > 1; # I have more than one planet
+  for my $planet ( $pw->MyPlanets ) {
+    my $id = $planet->PlanetID;
+    if ( $session->{simulation}{$id}[1]{takeover} ) {
+      AbandonPlanet($pw,$session,$id);
+    }
+  }
+}
 
-  my($myplanet   )= $pw->MyPlanets();
-  my $myid        = $myplanet->PlanetID();
-  return undef unless $session->{loosing}{$myid}; # I'm not loosing my planet
-  return undef unless $session->{loosing}{$myid} == 1; # I'm not loosing in next turn
-  warn "Attempting Desperate Move\n";
+# Get all ships to leave planet
+# XXX: Ships might be put into good use somewhere if not end of game
+#
+sub AbandonPlanet {
+  my($pw,$session,$myid) = @_;
 
-  # Find Distances to all neutralplanets
-  for my $target ( $pw->NeutralPlanets ) {
+  my $myships = $pw->GetPlanet($myid)->NumShips;
+
+  # Find distances to all planets
+  for my $target ( $pw->Planets ) {
     my $targetid = $target->PlanetID;
     next if $targetid == $myid;
     $session->{distance}{$myid}{$targetid} ||= $pw->Distance( $myid,$targetid );
   }
 
+  # Check if any neutral planets has less ships than me
+  my %lessthanme;
+  for my $target ( $pw->NeutralPlanets ) {
+    if ( $target->NumShips < $myships ) {
+      my $targetid = $target->PlanetID;
+      my $distance = $session->{distance}{$myid}{$targetid};
+      $lessthanme{$distance} = $targetid;
+    }
+  }
+  if ( %lessthanme ) {
+    my @distances = sort keys %lessthanme;
+    my $mostfar = pop @distances;
+    SendShips($pw, $session, $myid, $lessthanme{$mostfar}, $myships, 'LastDesperateMove to Smaller Neutral');
+    return;
+  }
+
+
   # Find planet most far away
-  my $farplanet;
   my $distance = 0;
+  my $farplanet;
   for my $target ( keys %{ $session->{distance}{$myid} } ) {
-    next if $pw->GetPlanet($target)->Owner > 0 and $pw->NeutralPlanets;
+    #next if $pw->GetPlanet($target)->Owner > 0 and $pw->NeutralPlanets;
     if ( $session->{distance}{$myid}{$target} > $distance ) {
       $distance = $session->{distance}{$myid}{$target};
       $farplanet = $target;
@@ -234,8 +256,8 @@ sub LastDesperateMove {
   #warn sprintf "Making Desperate move from %s to %s with %s ships\n",
   #  $myid,$farplanet, $myplanet->NumShips;
   #$pw->IssueOrder($myid,$farplanet, $myplanet->NumShips);
-  SendShips($pw, $session, $myid, $farplanet, $myplanet->NumShips, 'LastDesperateMove');
-  return 1;
+  SendShips($pw, $session, $myid, $farplanet, $myships, 'LastDesperateMove Most Far');
+  #return 1;
 }
 
 # If I have no planets pending to be lost, and enemy has no planets that
