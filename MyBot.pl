@@ -229,7 +229,7 @@ sub AbandonPlanet {
   for my $target ( $pw->MyPlanets ) {
     my $targetid = $target->PlanetID;
     next if $targetid == $myid;
-    next if $session->{loosing}{$targetid};
+    next if $session->{role}{loosing}{$targetid};
     my $distance = $session->{distance}{$myid}{$targetid};
     $surviver{$distance} = $targetid;
   }
@@ -333,7 +333,7 @@ sub DefendPlanet {
 
   # How soon is rescue required, and how much
   #x "DefendPlanet $planetid", $session->{loosing}{$planetid};
-  my $turns = $session->{loosing}{$planetid};
+  my $turns = $session->{role}{loosing}{$planetid};
   my $needships = $session->{simulation}{$planetid}[$turns]{numships};
   return undef if $needships <= 0;
   #warn "In $turns turns planet $planetid need $needships ships\n";
@@ -345,13 +345,14 @@ sub DefendPlanet {
       my $dist = $session->{distance}{$planetid}{$id};
       $id != $planetid and
       $dist <= $turns and
-      not defined $session->{loosing}{$id};
+      not defined $session->{role}{loosing}{$id};
     }
     $pw->MyPlanets;
 
   # Check if we can send enough
   my %order;
   for my $planet ( @nearby ) {
+    next if $planet->NumShips < 1;
     my $sending = ( $planet->NumShips >= $needships )
                 ? $needships
                 : $planet->NumShips;
@@ -365,8 +366,8 @@ sub DefendPlanet {
     while ( my($source,$sending) = each %order ) {
       SendShips($pw, $session, $source, $planetid, $sending, 'Rescue');
     }
-    delete $session->{loosing}{$planetid};
-    ++$session->{rescue}{$planetid};
+    delete $session->{role}{loosing}{$planetid};
+    ++$session->{role}{rescue}{$planetid};
   } else {
     #warn "Planet $planetid cannot be rescued\n";
   }
@@ -383,14 +384,22 @@ sub old_Grow {
   }
 }
 
+sub Grow {
+  my($pw,$session) = @_;
+
+  Attack($pw,$session);
+  MiddleField($pw,$session);
+  Supply($pw,$session);
+}
+
 # Find the third of my planets that are not being rescued
 # and most close to a neutral planet.
 # Send everything it got to that planet.
 #
-sub Grow {
+sub Attack {
   my($pw,$session) = @_;
 
-  return unless $pw->NeutralPlanets;
+  #return unless $pw->NeutralPlanets;
   return unless $pw->MyPlanets;
 
   # Planets available Not attacked, and loosing for sure
@@ -398,32 +407,39 @@ sub Grow {
   for my $planet ( $pw->MyPlanets() ) {
     next if $planet->NumShips < 1;
     my $planetid = $planet->PlanetID;
-    next if $session->{rescue}{$planetid};
+    next if $session->{role}{rescue}{$planetid};
     ++$attacker{$planetid};
   }
   return unless %attacker;
 
   # Find the closest neutral for all planets
-  for my $planet ( keys %attacker ) {
-    # Find distance to all neutral
-    my %dist;
-    for my $neutral ( $pw->NeutralPlanets ) {
-      my $id = $neutral->PlanetID;
-      $session->{distance}{$planet}{$id} ||= $pw->Distance($planet,$id);
-      my $distance = $session->{distance}{$planet}{$id};
-      $dist{$distance} = $id;
-    }
-    my @sorted = sort { $a <=> $b } keys %dist;
-    my $shortest = shift @sorted;
-    my $targetid = $dist{$shortest};
-    #my $ships = $pw->GetPlanet($planet)->NumShips;
-    #SendShips($pw, $session, $planet, $targetid, $ships, 'Grow');
-    $attacker{$planet} = { distance=>$shortest, planet=>$targetid };
+  #for my $planet ( keys %attacker ) {
+  #  # Find distance to all neutral
+  #  my %dist;
+  #  for my $neutral ( $pw->NeutralPlanets ) {
+  #    my $id = $neutral->PlanetID;
+  #    $session->{distance}{$planet}{$id} ||= $pw->Distance($planet,$id);
+  #    my $distance = $session->{distance}{$planet}{$id};
+  #    $dist{$distance} = $id;
+  #  }
+  #  my @sorted = sort { $a <=> $b } keys %dist;
+  #  my $shortest = shift @sorted;
+  #  my $targetid = $dist{$shortest};
+  #  #my $ships = $pw->GetPlanet($planet)->NumShips;
+  #  #SendShips($pw, $session, $planet, $targetid, $ships, 'Grow');
+  #  $attacker{$planet} = { distance=>$shortest, planet=>$targetid };
+  #}
+
+  my %target = GrowTargets($pw,$session);
+  for my $planetid ( keys %attacker ) {
+    my @moves = RankTargets($pw,$session,$pw->GetPlanet($planetid),%target);
+    #x "moves for $planetid", \@moves;
+    $attacker{$planetid} = shift @moves;
   }
 
   # Choose 1/3 of planets with shortest distances
   my @sorted = 
-    sort { $attacker{$a}{distance} <=> $attacker{$b}{distance} }
+    sort { $attacker{$b}{desire} <=> $attacker{$a}{desire} }
     keys %attacker;
   my $count = int 0.5 + @sorted / 3;
   --$count; $count = 0 if $count < 0;
@@ -434,15 +450,96 @@ sub Grow {
   
   # Let that 1/3 attack
   for my $planetid ( @attackid ) {
-    ++$session->{attacker}{$planetid};
+    ++$session->{role}{attacker}{$planetid};
     my $ships = $pw->GetPlanet($planetid)->NumShips;
-    SendShips($pw, $session, $planetid, $attacker{$planetid}{planet}, $ships, 'Attack Neutral');
+    SendShips($pw, $session, $planetid, $attacker{$planetid}{planetid}, $ships, 'Attack Higest 1/3 Desire');
   }
   
 }
 
+# Each Attacking Planet needs backup from closest non-attacking planet
+#
+sub MiddleField {
+  my($pw,$session) = @_;
 
-sub Attack {
+  return unless $session->{role}{attacker};
+  my %attacker = %{ $session->{role}{attacker} };
+  my %nearby;
+  my %middle;
+  for my $planet ( $pw->MyPlanets ) {
+    my $id = $planet->PlanetID;
+    next if $attacker{$id};
+    next if $session->{role}{rescue}{$id};
+    next if $planet->NumShips < 1;
+    ++$nearby{$id};
+  }
+  return unless %nearby;
+
+  for my $attackid ( keys %attacker ) {
+    my $dist = $session->{distance}{$attackid} ||= {};
+    # Make sure all distances are known
+    for my $supplyid ( keys %nearby ) {
+      $dist->{$supplyid} ||= $pw->Distance( $attackid, $supplyid );
+    }
+
+    # Find planet with shortest distance
+    my @supply =
+      sort { $dist->{$a} <=> $dist->{$b} }
+      keys %nearby;
+    my $nearestplanetid = shift @supply;
+
+    push @{$middle{$nearestplanetid}}, $attackid;
+  }
+
+  #x 'middlefield', \%middle;
+  
+  for my $planetid ( keys %middle ) {
+    ++$session->{role}{middle}{$planetid};
+    my $numships = $pw->GetPlanet($planetid)->NumShips;
+    my $numdest = @{ $middle{$planetid} };
+    my $send = int $numships / $numdest;
+    next if $send < 1;
+    for my $attackid ( @{ $middle{$planetid} } ) {
+      SendShips($pw,$session,$planetid,$attackid,$send,'Middlefield');
+    }
+  }
+}
+
+# All planets that have no role send their ships to closest middlefield
+#
+sub Supply {
+  my($pw,$session) = @_;
+
+  return unless $session->{role}{middle};
+  my %middle = %{ $session->{role}{middle} };
+  my %attacker = %{ $session->{role}{attacker} };
+  #x 'middle', \%middle;
+  my %supply;
+  for my $planet ( $pw->MyPlanets ) {
+    my $id = $planet->PlanetID;
+    next if $middle{$id};
+    next if $attacker{$id};
+    next if $session->{role}{rescue}{$id};
+    next if $planet->NumShips < 1;
+    ++$supply{$id};
+  }
+  return unless %supply;
+
+  #x 'supply', \%supply;
+
+  for my $planetid ( keys %supply ) {
+    my $dist = $session->{distance}{$planetid} ||= {};
+    for my $middleid ( keys %middle, keys %attacker ) {
+      $dist->{$middleid} ||= $pw->Distance( $planetid, $middleid );
+    }
+    my @sorted = sort { $dist->{$a} <=> $dist->{$b} } ( keys %middle, keys %attacker );
+    my $nearest = shift @sorted;
+    SendShips($pw,$session,$planetid,$nearest,$pw->GetPlanet($planetid)->NumShips, 'Supply');
+  }
+}
+
+
+sub old_Attack {
   my($pw,$session) = @_;
 
   my %target = AttackTargets($pw,$session);
@@ -483,7 +580,7 @@ sub SendFleets {
 }
 
 # How attractive it is for one planet to attack another
-#   Desire = Growth / ( Distance + Ships + Incoming )
+#   Desire = Growth / ( Distance + Ships )
 #
 sub Desire {
   my($pw,$session,$p1,$p2) = @_;
@@ -492,11 +589,11 @@ sub Desire {
   my $p2id = $p2->PlanetID();
   my $dist = $session->{distance}{$p1id}{$p2id} ||= $pw->Distance( $p1id,$p2id );
   $dist = $dist ** 2.0;
-  my $incoming = $p2->{incoming} || 0;
+  #my $incoming = $p2->{incoming} || 0;
   return $p2->GrowthRate()**$session->{config}{planetsize} / ( 
     $session->{config}{distance} * $dist          +
-    $session->{config}{ships}    *  $p2->NumShips +
-    $session->{config}{incoming} *  $incoming
+    $session->{config}{ships}    * $p2->NumShips
+    #$session->{config}{incoming} *  $incoming
   );
 }
 
@@ -574,16 +671,17 @@ sub GrowTargets {
   #  $target{$planetid}{incoming} += $fl->NumShips();
   #}
 
-  my %defense = DefenseTargets($pw);
+  #my %defense = DefenseTargets($pw);
+  my %defense = %{ $session->{role}{loosing} };
   while ( my($planetid,$data) = each %defense ) {
-    $target{$planetid} = $data;
+    $target{$planetid} = { planet => $pw->GetPlanet($planetid) };
   }
   return %target;
 }
 
 # My planets under attack that does not have sufficient defense
 #
-sub  DefenseTargets {
+sub  old_DefenseTargets {
   my $pw = shift;
 
   my %target = ();
@@ -756,8 +854,8 @@ sub LoosingTargets {
   }
 
 
-  $session->{loosing} = \%lost;
-  $session->{keeping} = \%kept;
+  $session->{role}{loosing} = \%lost;
+  #$session->{keeping} = \%kept;
   return keys %lost;
 }
 
@@ -880,4 +978,5 @@ sub Simulation {
     $simulation{$planetid} = \@numships;
   }
   $session->{simulation} = \%simulation;
+  $session->{role} = {};
 }
