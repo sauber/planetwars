@@ -36,7 +36,7 @@ my $session = {
   move     => 0,
   distance => {},
   config   => {
-    openingmoves => 3,  # 1 2 3 4 5
+    openingmoves => 1,  # 1 2 3 4 5
     numfleets => 126, # 10, 25, 50, 75, 100, 150, 200, 300
     attackbalance => 2.28, # 0.0 0.5 0.75 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0
     minfleetsize => 8, # 1 2 3 4 5 6 7 8 9 10
@@ -186,7 +186,7 @@ sub FirstMove {
   for my $dest ( @moves ) {
     next if $session->{firstsent}{$dest->{planetid}};
     my $tosend = $dest->{planet}->NumShips() +1;
-    next if $tosend >= $numships;
+    next if $tosend > $numships;
     #$pw->IssueOrder($myid,$dest->{planetid}, $tosend);
     SendShips($pw,$session,$myid,$dest->{planetid}, $tosend,'FirstMove');
     $numships -= $tosend;
@@ -441,18 +441,24 @@ sub Attack {
   my @sorted = 
     sort { $attacker{$b}{desire} <=> $attacker{$a}{desire} }
     keys %attacker;
-  my $count = int 0.5 + @sorted / 3;
+  my $count = int 0.5 + @sorted / 2;
   --$count; $count = 0 if $count < 0;
   my @attackid = @sorted[0 .. $count];
+  #my @attackid = @sorted; # XXX: All are attackers
   #x 'attacker', \%attacker;
   #x 'sorted', \@sorted;
   #x 'attackid', \@attackid;
   
   # Let that 1/3 attack
   for my $planetid ( @attackid ) {
-    ++$session->{role}{attacker}{$planetid};
+    my $targetid = $attacker{$planetid}{planetid};
     my $ships = $pw->GetPlanet($planetid)->NumShips;
-    SendShips($pw, $session, $planetid, $attacker{$planetid}{planetid}, $ships, 'Attack Higest 1/3 Desire');
+    $ships = int $ships / 2;
+    next unless $ships;
+    ++$session->{role}{attacker}{$planetid};
+    ++$session->{role}{target}{$targetid};
+    SendShips($pw, $session, $planetid, $targetid, $ships, 'Attack');
+    #last; # XXX for now only attack one
   }
   
 }
@@ -464,6 +470,7 @@ sub MiddleField {
 
   return unless $session->{role}{attacker};
   my %attacker = %{ $session->{role}{attacker} };
+  #my %target = %{ $session->{role}{target} };
   my %nearby;
   my %middle;
   for my $planet ( $pw->MyPlanets ) {
@@ -513,6 +520,7 @@ sub Supply {
   return unless $session->{role}{middle};
   my %middle = %{ $session->{role}{middle} };
   my %attacker = %{ $session->{role}{attacker} };
+  my %target = %{ $session->{role}{target} };
   #x 'middle', \%middle;
   my %supply;
   for my $planet ( $pw->MyPlanets ) {
@@ -529,10 +537,13 @@ sub Supply {
 
   for my $planetid ( keys %supply ) {
     my $dist = $session->{distance}{$planetid} ||= {};
-    for my $middleid ( keys %middle, keys %attacker ) {
+    for my $middleid ( keys %middle, keys %attacker, keys %target ) {
       $dist->{$middleid} ||= $pw->Distance( $planetid, $middleid );
     }
-    my @sorted = sort { $dist->{$a} <=> $dist->{$b} } ( keys %middle, keys %attacker );
+    my @sorted =
+      sort { $dist->{$a} <=> $dist->{$b} }
+      grep $dist->{$_},
+      ( keys %middle, keys %attacker, %target );
     my $nearest = shift @sorted;
     SendShips($pw,$session,$planetid,$nearest,$pw->GetPlanet($planetid)->NumShips, 'Supply');
   }
@@ -587,14 +598,65 @@ sub Desire {
 
   my $p1id = $p1->PlanetID();
   my $p2id = $p2->PlanetID();
-  my $dist = $session->{distance}{$p1id}{$p2id} ||= $pw->Distance( $p1id,$p2id );
-  $dist = $dist ** 2.0;
-  #my $incoming = $p2->{incoming} || 0;
-  return $p2->GrowthRate()**$session->{config}{planetsize} / ( 
-    $session->{config}{distance} * $dist          +
-    $session->{config}{ships}    * $p2->NumShips
-    #$session->{config}{incoming} *  $incoming
-  );
+  return -99999 if $p1id == $p2id;
+
+  # Distance
+  my $dist = $session->{distance}{$p1id}{$p2id}||=$pw->Distance( $p1id,$p2id );
+  $dist = $dist ** 1.5;
+
+  # Ships
+  # use the simulated endnumber
+  #my $p1ships = $session->{simulation}{$p1id}
+  #            ? $session->{simulation}{$p1id}[-1]{numships}
+  #            : $p1->NumShips;
+  #$p1ships ||= 0;
+  #my $p2ships = $session->{simulation}{$p2id}
+  #            ? $session->{simulation}{$p2id}[-1]{numships}
+  #            : $p2->NumShips;
+  #$p2ships ||= 0;
+  ##my $ships = ( $p1ships - $p2ships );
+  #my $ships = $p2ships;
+
+  my $ships = $p2->NumShips;
+  my $grown = 0;
+  if ( $session->{simulation}{$p2id} ) {
+    $grown = $session->{simulation}{$p2id}[-1]{numships} - $ships;
+    # Remainin turns
+    my $turns = $session->{distance}{$p1id}{$p2id}
+              - $#{$session->{simulation}{$p2id}};
+    if ( $turns > 0 ) {
+      $grown += $turns * $p2->GrowthRate();
+    }
+  } elsif ( $p2->Owner == 2 ) {
+    $grown =$session->{distance}{$p1id}{$p2id} * $p2->GrowthRate();
+  }
+
+  # How many extra ships will enemy have grown by the time I arrive
+  #my $grown = $p2->Owner == 2
+  #          ? $session->{distance}{$p1id}{$p2id} * $p2->GrowthRate()
+  #          : 0;
+
+  # XXX: How many reinforcementes will enemy have by the time I arrive
+
+  # Growth of target
+  my $growth = $p2->GrowthRate();
+
+  #my $desire = $growth / ( $dist + $ships );
+  #warn sprintf "Desire %s->%s: %s = %s / (%s + %s)\n",
+  #   $p1id, $p2id, $desire, $growth, $dist, $ships;
+  ++$dist if  0 == $dist + $ships + $grown;
+  my $desire = $growth / ( $dist + $ships + $grown );
+  #warn sprintf "Desire %s->%s: %.4f = %s / (%.1f + %s + %s )\n",
+  #   $p1id, $p2id, $desire, $growth, $dist, $ships, $grown;
+
+  ##my $incoming = $p2->{incoming} || 0;
+  #return $p2->GrowthRate()**$session->{config}{planetsize} / ( 
+  #  $session->{config}{distance} * $dist          +
+  #  $session->{config}{ships}    * $p2->NumShips
+  #  #$session->{config}{incoming} *  $incoming
+  #);
+
+  return $desire;
 }
 
 # Rank all targets by desire from one planet
@@ -658,7 +720,7 @@ sub AttackTargets {
   return %target;
 }
 
-# Enemy and Neutral and Mine under attack
+# Find new planets that can help me grow
 #
 sub GrowTargets {
   my $pw = shift;
@@ -674,8 +736,18 @@ sub GrowTargets {
   #my %defense = DefenseTargets($pw);
   my %defense = %{ $session->{role}{loosing} };
   while ( my($planetid,$data) = each %defense ) {
-    $target{$planetid} = { planet => $pw->GetPlanet($planetid) };
+    #$target{$planetid} = { planet => $pw->GetPlanet($planetid) };
   }
+
+  # Remove targets that will be won
+  for my $planetid ( keys %target ) {
+    if ( $session->{simulation}{$planetid} ) {
+      if ( $session->{simulation}{$planetid}[-1]{owner} == 1 ) {
+        delete $target{$planetid};
+      }
+    }
+  }
+
   return %target;
 }
 
