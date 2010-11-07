@@ -37,10 +37,10 @@ my $session = {
   distance => {},
   config   => {
     openingmoves => 1,  # 1 2 3 4 5
-    numfleets => 126, # 10, 25, 50, 75, 100, 150, 200, 300
-    attackbalance => 2.28, # 0.0 0.5 0.75 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0
-    minfleetsize => 8, # 1 2 3 4 5 6 7 8 9 10
-    maxorders => 2, # 1 2 3 4 5 6 7 8 9 10
+    numfleets => 160, # 10, 25, 50, 75, 100, 150, 200, 300
+    attackbalance => 1.5, # 0.0 0.5 0.75 1.0 1.1 1.25 1.5 2.0 3.0 5.0 10.0
+    minfleetsize => 6, # 1 2 3 4 5 6 7 8 9 10
+    maxorders => 4, # 1 2 3 4 5 6 7 8 9 10
     distance => 4.56, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
     ships => 2.54, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
     incoming => 1.67, # 0.1 0.2 0.5 0.75 1.0 1.5 2 5 10
@@ -112,20 +112,23 @@ sub DoTurn {
   #  FirstMove($pw,$session);
 
   # Enough going on already
-  if ( $pw->MyFleets() > $session->{config}{numfleets} ) {
-    return;
+  #if ( $pw->MyFleets() > $session->{config}{numfleets} ) {
+  return if $pw->MyFleets() > $session->{config}{numfleets};
 
   # I will win
 
   # Attack to erase opponent
-  } elsif ( Balance($pw) > $session->{config}{attackbalance} ) {
+  #} elsif ( Balance($pw) > $session->{config}{attackbalance} ) {
   #} else {
-    Attack($pw,$session);
+  #  Attack($pw,$session);
 
   # Growth
-  } else {
-    Grow($pw,$session);
-  }
+  #} else {
+  #  Grow($pw,$session);
+  return old_Grow($pw,$session) if Balance($pw) > $session->{config}{attackbalance};
+  old_Attack($pw,$session);
+  #old_Grow($pw,$session);
+  #}
   # Defensive
   # I will loose
 }
@@ -602,7 +605,7 @@ sub Desire {
 
   # Distance
   my $dist = $session->{distance}{$p1id}{$p2id}||=$pw->Distance( $p1id,$p2id );
-  $dist = $dist ** 1.5;
+  $dist =  2 * ( $dist ** 1.5 );
 
   # Ships
   # use the simulated endnumber
@@ -639,7 +642,7 @@ sub Desire {
   # XXX: How many reinforcementes will enemy have by the time I arrive
 
   # Growth of target
-  my $growth = $p2->GrowthRate();
+  my $growth = 2 + $p2->GrowthRate();
 
   #my $desire = $growth / ( $dist + $ships );
   #warn sprintf "Desire %s->%s: %s = %s / (%s + %s)\n",
@@ -753,7 +756,7 @@ sub GrowTargets {
 
 # My planets under attack that does not have sufficient defense
 #
-sub  old_DefenseTargets {
+sub  DefenseTargets {
   my $pw = shift;
 
   my %target = ();
