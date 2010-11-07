@@ -1,0 +1,26 @@
+1 4cf99bb248827b84638b3389fe9cb5f11e56c491 Applied climb ranking changes, and not limit number of fleets in flight
+2 75d58e53cdf9730b54229143ac8881139a67511d Send 6 from each planet to closest not owned -- Soren
+3 8c57ad8ba64a04d58e4a19211e1c389efade0b69 Send half from each planet to closest not owned
+4 0caef4eccb044692386ef5efe266b58334f63db7 Send half from each planet to most closest/biggest not owned
+5 4f33e3120729c57b5e3a1835e0be2b1b2f62b3ac Tunables and defense
+6 4b01a2f315054989844eb2492ad3262108a7fc42 delay distance until needed - consider numships for targets
+7 eaec1f9d7a2801fa09ab2e44708db265c4e976e1 Opening Move
+8 8a0c352551f1af8e295eb37b3c9789473635506f Common code for findind and ranking candidates in different phases of game
+9 5c3a181a893da071bb3aecd64ff2a67d2d932f6e Use same code for growth and attack
+10 a7d23f6d544ea479babc5043ab451b96fe07a85a Code cleanup
+11 8954f4970062934a8a8fb1f1497091ed69a8104c A script to find the best config options
+12 9784de7e75a78e33d7a6d89629bf4ecf10f9e866 Tuning
+13 a5fe806f7165b3099bacab9140030a1936fb6157 More accurate defense
+14 475e9ad7a6def1f4be9fbdfbb61c8b5fd08314d9 Added a simulation engine
+15 9bbe1c35866ce27c8afe63b2b67a7a0e07026f2c Favor shorter distances
+16 f2a2939ee03c9e7cb781436efe52ce6e5a5bcdf8 Last Desperate Move
+17 1ecf42b3f82569ce7682ac16d903b5f4a40db051 Avoid undef-warnings in map-reading routine
+18 6833b8c6dcf14f142dd15bcd2d07548cd2d5e5bf AlreadyWon method
+19 dd5d7768a6c40bc4a9e447bc5a3d1a67cae5966b Choose enemyplanet if no neutral exist for desperate move
+20 d4e2a997f2029b0d51ca2c24df13658c02506362 Error Checking
+21 8271958648c20c6e86d161556154b6bbfbb91721 Granular rescue efforts
+22 0a187f869804722149c7afd3a493bb6f0b3066b0 LastMove needs simulation
+23 6314397e234f683baca2b629ca660798907fa7ba Make Abandon work again
+24 9b63e27bab5824b8c037b8fd3efde130de61d078 Attack Neutral Planets
+25 d5d9294f2c912018d656cbe73c004b5845792ac7 Middlefield and supply
+26 89dab160bfba1b27f05057b0fb64f15703b9da64 Bug fixing and tuning
